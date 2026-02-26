@@ -6,6 +6,7 @@ import {
   sendOutFromFolder,
   updateDocumentFolder
 } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 export function DocumentFolderDetailPage() {
   const { folderId } = useParams();
@@ -19,6 +20,7 @@ export function DocumentFolderDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [statusText, setStatusText] = useState('');
+  const [selectedDocuments, setSelectedDocuments] = useState([]);
 
   useEffect(() => {
     if (isNew) {
@@ -49,6 +51,20 @@ export function DocumentFolderDetailPage() {
 
     loadFolder();
   }, [folderId, isNew]);
+
+  const heldDocuments = folderMeta?.heldDocuments || [];
+
+  useEffect(() => {
+    setSelectedDocuments((current) =>
+      current.filter((id) => heldDocuments.some((item) => item.document?.id === id))
+    );
+  }, [heldDocuments]);
+
+  async function refreshFolder() {
+    const data = await listDocumentFolders();
+    const found = data.find((item) => item.id === (folderMeta?.id || folderId));
+    setFolderMeta(found || folderMeta);
+  }
 
   async function handleSave() {
     if (!folderName.trim()) {
@@ -104,12 +120,53 @@ export function DocumentFolderDetailPage() {
     try {
       await sendOutFromFolder(folderMeta.id, { documentIds });
       setStatusText('Held documents sent out');
-      const data = await listDocumentFolders();
-      const found = data.find((item) => item.id === folderMeta.id);
-      setFolderMeta(found || folderMeta);
+      setSelectedDocuments([]);
+      await refreshFolder();
     } catch (error) {
       setErrorText(error?.response?.data?.error || 'Failed to send out held documents');
     }
+  }
+
+  async function handleSendOutSelected() {
+    if (!folderMeta) {
+      return;
+    }
+
+    if (!selectedDocuments.length) {
+      return;
+    }
+
+    setStatusText('');
+    setErrorText('');
+
+    try {
+      await sendOutFromFolder(folderMeta.id, { documentIds: selectedDocuments });
+      setStatusText('Selected documents sent out');
+      setSelectedDocuments([]);
+      await refreshFolder();
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to send out selected documents');
+    }
+  }
+
+  function toggleSelected(docId) {
+    if (!docId) {
+      return;
+    }
+    setSelectedDocuments((current) =>
+      current.includes(docId) ? current.filter((id) => id !== docId) : [...current, docId]
+    );
+  }
+
+  function formatTimestamp(value) {
+    if (!value) {
+      return 'Unknown';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Unknown';
+    }
+    return parsed.toLocaleString();
   }
 
   return (
@@ -135,46 +192,135 @@ export function DocumentFolderDetailPage() {
       {isLoading ? <p>Loading folder...</p> : null}
 
       {!isLoading ? (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Folder Details</h2>
-              <p>Configure the review folder and manage held documents.</p>
-            </div>
-          </div>
-          <div className="form-grid">
-            <label htmlFor="document-folder-name">Folder name</label>
-            <input
-              id="document-folder-name"
-              type="text"
-              value={folderName}
-              onChange={(event) => setFolderName(event.target.value)}
-            />
-          </div>
-
-          {folderMeta ? (
-            <div className="panel-actions">
-              <button type="button" className="btn btn-outline" onClick={handleSendOutAll}>
-                Send Out All Held Documents
-              </button>
-            </div>
-          ) : null}
-
-          {folderMeta ? (
-            <div className="card-grid">
-              <div className="card-item">
-                <div className="card-title">Held documents</div>
-                <div className="card-meta">
-                  {folderMeta.heldDocumentCount || folderMeta.heldDocuments?.length || 0}
+        <>
+          <div className="panel-grid">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Folder Details</h2>
+                  <p>Configure the review folder and manage held documents.</p>
                 </div>
               </div>
-              <div className="card-item">
-                <div className="card-title">Used by nodes</div>
-                <div className="card-meta">{folderMeta.nodeUsages?.length || 0}</div>
+              <div className="form-grid">
+                <label htmlFor="document-folder-name">Folder name</label>
+                <input
+                  id="document-folder-name"
+                  type="text"
+                  value={folderName}
+                  onChange={(event) => setFolderName(event.target.value)}
+                />
               </div>
+
+              {folderMeta ? (
+                <div className="card-grid">
+                  <div className="card-item">
+                    <div className="card-title">Held documents</div>
+                    <div className="card-meta">
+                      {folderMeta.heldDocumentCount || folderMeta.heldDocuments?.length || 0}
+                    </div>
+                  </div>
+                  <div className="card-item">
+                    <div className="card-title">Used by nodes</div>
+                    <div className="card-meta">{folderMeta.nodeUsages?.length || 0}</div>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Workflow Usage</h2>
+                  <p>Jump to the canvas nodes using this folder.</p>
+                </div>
+              </div>
+              <UsageList usages={folderMeta?.nodeUsages || []} />
+            </section>
+          </div>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2>Held Documents</h2>
+                <p>Review documents held in this folder.</p>
+              </div>
+              {folderMeta ? (
+                <div className="panel-actions">
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleSendOutSelected}
+                    disabled={!selectedDocuments.length}
+                  >
+                    Send Selected ({selectedDocuments.length})
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleSendOutAll}
+                    disabled={!heldDocuments.length}
+                  >
+                    Send Out All Held Documents
+                  </button>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </section>
+
+            {heldDocuments.length === 0 ? (
+              <p className="muted-text">No held documents in this folder.</p>
+            ) : (
+              <div className="data-table">
+                <div className="data-header five-col">
+                  <span></span>
+                  <span>Document</span>
+                  <span>Workflow</span>
+                  <span>Node</span>
+                  <span>Arrived</span>
+                </div>
+                {heldDocuments.map((item, index) => {
+                  const docId = item.document?.id;
+                  const isSelected = docId ? selectedDocuments.includes(docId) : false;
+                  return (
+                    <div className="data-row five-col" key={docId || `${index}`}>
+                      <div className="data-cell">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelected(docId)}
+                          disabled={!docId}
+                        />
+                      </div>
+                      <div className="data-cell">
+                        <span className="card-title">
+                          {item.document?.fileName || item.document?.id || 'Document'}
+                        </span>
+                        <span className="data-meta">{item.document?.id || 'No ID'}</span>
+                      </div>
+                      <div className="data-cell">
+                        {item.workflowId ? (
+                          <Link
+                            className="btn btn-ghost"
+                            to={`/app/workflows/${item.workflowId}/canvas?nodeId=${item.nodeId}`}
+                          >
+                            {item.workflowName || 'Workflow'}
+                          </Link>
+                        ) : (
+                          <span className="data-meta">Workflow pending</span>
+                        )}
+                      </div>
+                      <div className="data-cell">
+                        <span className="data-meta">{item.nodeName || 'Node'}</span>
+                      </div>
+                      <div className="data-cell">
+                        <span className="data-meta">{formatTimestamp(item.arrivedAt)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
       ) : null}
     </div>
   );

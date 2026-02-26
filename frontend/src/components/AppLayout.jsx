@@ -47,14 +47,6 @@ export function AppLayout() {
             <div className="brand-subtitle">Workflow-first document ETL</div>
           </div>
         </div>
-        <div className="topbar-actions">
-          <NavLink className="btn btn-ghost" to="/app/settings">
-            Settings
-          </NavLink>
-          <button type="button" className="btn-danger" onClick={signOut}>
-            Sign out
-          </button>
-        </div>
       </header>
 
       <div className="workspace-grid">
@@ -69,6 +61,14 @@ export function AppLayout() {
               </div>
               <div className="user-email">{user?.email || 'unknown user'}</div>
             </div>
+          </div>
+          <div className="user-actions">
+            <NavLink className="btn btn-ghost" to="/app/settings">
+              Profile & Preferences
+            </NavLink>
+            <button type="button" className="btn btn-soft" onClick={signOut}>
+              Sign out
+            </button>
           </div>
 
           {NAV_SECTIONS.map((section) => (

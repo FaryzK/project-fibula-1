@@ -5,6 +5,7 @@ import {
   listCategorisationPrompts,
   updateCategorisationPrompt
 } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 export function CategorisationPromptDetailPage() {
   const { promptId } = useParams();
@@ -15,6 +16,7 @@ export function CategorisationPromptDetailPage() {
   const [labelName, setLabelName] = useState('');
   const [labelDescription, setLabelDescription] = useState('');
   const [labels, setLabels] = useState([]);
+  const [nodeUsages, setNodeUsages] = useState([]);
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -40,6 +42,7 @@ export function CategorisationPromptDetailPage() {
 
         setPromptName(found.name || '');
         setLabels(found.labels || []);
+        setNodeUsages(found.nodeUsages || []);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load categorisation prompt');
       } finally {
@@ -121,60 +124,74 @@ export function CategorisationPromptDetailPage() {
       {isLoading ? <p>Loading prompt...</p> : null}
 
       {!isLoading ? (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Prompt Details</h2>
-              <p>Maintain up to 20 categorisation labels for this prompt.</p>
+        <>
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2>Prompt Details</h2>
+                <p>Maintain up to 20 categorisation labels for this prompt.</p>
+              </div>
             </div>
-          </div>
 
-          <div className="form-grid">
-            <label htmlFor="categorisation-prompt-name">Prompt name</label>
-            <input
-              id="categorisation-prompt-name"
-              type="text"
-              value={promptName}
-              onChange={(event) => setPromptName(event.target.value)}
-            />
+            <div className="form-grid">
+              <label htmlFor="categorisation-prompt-name">Prompt name</label>
+              <input
+                id="categorisation-prompt-name"
+                type="text"
+                value={promptName}
+                onChange={(event) => setPromptName(event.target.value)}
+              />
 
-            <label>Label name</label>
-            <input
-              type="text"
-              value={labelName}
-              onChange={(event) => setLabelName(event.target.value)}
-              placeholder="e.g. Invoice"
-            />
+              <label>Label name</label>
+              <input
+                type="text"
+                value={labelName}
+                onChange={(event) => setLabelName(event.target.value)}
+                placeholder="e.g. Invoice"
+              />
 
-            <label>Label description</label>
-            <input
-              type="text"
-              value={labelDescription}
-              onChange={(event) => setLabelDescription(event.target.value)}
-              placeholder="Describe when this label applies"
-            />
+              <label>Label description</label>
+              <input
+                type="text"
+                value={labelDescription}
+                onChange={(event) => setLabelDescription(event.target.value)}
+                placeholder="Describe when this label applies"
+              />
 
-            <button type="button" className="btn btn-outline" onClick={addLabel}>
-              Add Label
-            </button>
-          </div>
+              <button type="button" className="btn btn-outline" onClick={addLabel}>
+                Add Label
+              </button>
+            </div>
 
-          {labels.length > 0 ? (
-            <div className="card-grid">
-              {labels.map((item, index) => (
-                <div className="card-item" key={`${item.label}-${index}`}>
-                  <div className="card-title">{item.label}</div>
-                  <div className="card-meta">{item.description || 'No description'}</div>
-                  <div className="panel-actions">
-                    <button type="button" className="btn btn-ghost" onClick={() => removeLabel(index)}>
-                      Remove
-                    </button>
+            {labels.length > 0 ? (
+              <div className="card-grid">
+                {labels.map((item, index) => (
+                  <div className="card-item" key={`${item.label}-${index}`}>
+                    <div className="card-title">{item.label}</div>
+                    <div className="card-meta">{item.description || 'No description'}</div>
+                    <div className="panel-actions">
+                      <button type="button" className="btn btn-ghost" onClick={() => removeLabel(index)}>
+                        Remove
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+            ) : null}
+          </section>
+
+          {!isNew ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Workflow Usage</h2>
+                  <p>Jump to the nodes using this categorisation prompt.</p>
                 </div>
-              ))}
-            </div>
+              </div>
+              <UsageList usages={nodeUsages} />
+            </section>
           ) : null}
-        </section>
+        </>
       ) : null}
     </div>
   );

@@ -7,6 +7,7 @@ import {
   updateDataMapRule
 } from '../../services/dataMapperReconciliationApi';
 import { listExtractors } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 const LOOKUP_LIMIT = 7;
 
@@ -21,6 +22,8 @@ export function DataMapRuleDetailPage() {
   const [lookups, setLookups] = useState([]);
   const [dataMapSets, setDataMapSets] = useState([]);
   const [extractors, setExtractors] = useState([]);
+  const [nodeUsages, setNodeUsages] = useState([]);
+  const [activeSection, setActiveSection] = useState('basics');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -50,6 +53,7 @@ export function DataMapRuleDetailPage() {
           setExtractorName(found.extractorName || '');
           setMapTargets(found.mapTargets || []);
           setLookups(found.lookups || []);
+          setNodeUsages(found.nodeUsages || []);
         }
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load data map rule');
@@ -172,198 +176,234 @@ export function DataMapRuleDetailPage() {
 
       {!isLoading ? (
         <>
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>Rule Basics</h2>
-                <p>Select the extractor schema this rule enriches.</p>
-              </div>
-            </div>
-            <div className="form-grid">
-              <label htmlFor="data-map-rule-name">Rule name</label>
-              <input
-                id="data-map-rule-name"
-                type="text"
-                value={ruleName}
-                onChange={(event) => setRuleName(event.target.value)}
-              />
-
-              <label htmlFor="data-map-rule-extractor">Extractor</label>
-              <select
-                id="data-map-rule-extractor"
-                value={extractorName}
-                onChange={(event) => setExtractorName(event.target.value)}
+          <div className="segmented-control" role="tablist">
+            {[
+              { key: 'basics', label: 'Basics' },
+              { key: 'targets', label: 'Map Targets' },
+              { key: 'lookups', label: 'Lookups' },
+              ...(!isNew ? [{ key: 'usage', label: 'Usage' }] : [])
+            ].map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                aria-pressed={activeSection === section.key}
+                onClick={() => setActiveSection(section.key)}
               >
-                <option value="">Select extractor</option>
-                {extractors.map((extractor) => (
-                  <option key={extractor.id} value={extractor.name}>
-                    {extractor.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>Map Targets</h2>
-                <p>Choose which schema fields to populate from your data map set.</p>
-              </div>
-              <button type="button" className="btn btn-outline" onClick={addMapTarget}>
-                Add Map Target
+                {section.label}
               </button>
-            </div>
+            ))}
+          </div>
 
-            {mapTargets.length === 0 ? <p>No map targets yet.</p> : null}
-
-            {mapTargets.map((target, index) => (
-              <div className="form-grid" key={`map-target-${index}`}>
-                <label>Schema field path</label>
-                <input
-                  type="text"
-                  value={target.schemaFieldPath || ''}
-                  onChange={(event) => updateMapTarget(index, 'schemaFieldPath', event.target.value)}
-                  placeholder="vendor.code"
-                />
-
-                <label>Data map set</label>
-                <select
-                  value={target.setId || ''}
-                  onChange={(event) => updateMapTarget(index, 'setId', event.target.value)}
-                >
-                  <option value="">Select set</option>
-                  {setOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-
-                <label>Set column</label>
-                <select
-                  value={target.setColumn || ''}
-                  onChange={(event) => updateMapTarget(index, 'setColumn', event.target.value)}
-                  disabled={!target.setId}
-                >
-                  <option value="">Select column</option>
-                  {headersForSet(target.setId).map((header) => (
-                    <option key={header} value={header}>
-                      {header}
-                    </option>
-                  ))}
-                </select>
-
-                <label>Mode</label>
-                <select
-                  value={target.mode || 'map'}
-                  onChange={(event) => updateMapTarget(index, 'mode', event.target.value)}
-                >
-                  <option value="map">Map</option>
-                  <option value="calculation">Calculation</option>
-                </select>
-
-                {target.mode === 'calculation' ? (
-                  <>
-                    <label>Calculation expression</label>
-                    <input
-                      type="text"
-                      value={target.calculation || ''}
-                      onChange={(event) => updateMapTarget(index, 'calculation', event.target.value)}
-                      placeholder="quantity * conversion"
-                    />
-                  </>
-                ) : null}
-
-                <div className="panel-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => removeMapTarget(index)}>
-                    Remove Target
-                  </button>
+          {activeSection === 'basics' ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Rule Basics</h2>
+                  <p>Select the extractor schema this rule enriches.</p>
                 </div>
               </div>
-            ))}
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>Lookups</h2>
-                <p>Define how the system finds matching rows in the data map set.</p>
-              </div>
-              <button type="button" className="btn btn-outline" onClick={addLookup}>
-                Add Lookup
-              </button>
-            </div>
-
-            {lookups.length === 0 ? <p>No lookups yet.</p> : null}
-
-            {lookups.map((lookup, index) => (
-              <div className="form-grid" key={`lookup-${index}`}>
-                <label>Data map set</label>
-                <select
-                  value={lookup.setId || ''}
-                  onChange={(event) => updateLookup(index, 'setId', event.target.value)}
-                >
-                  <option value="">Select set</option>
-                  {setOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-
-                <label>Set column</label>
-                <select
-                  value={lookup.setColumn || ''}
-                  onChange={(event) => updateLookup(index, 'setColumn', event.target.value)}
-                  disabled={!lookup.setId}
-                >
-                  <option value="">Select column</option>
-                  {headersForSet(lookup.setId).map((header) => (
-                    <option key={header} value={header}>
-                      {header}
-                    </option>
-                  ))}
-                </select>
-
-                <label>Schema field to match</label>
+              <div className="form-grid">
+                <label htmlFor="data-map-rule-name">Rule name</label>
                 <input
+                  id="data-map-rule-name"
                   type="text"
-                  value={lookup.schemaFieldPath || ''}
-                  onChange={(event) => updateLookup(index, 'schemaFieldPath', event.target.value)}
-                  placeholder="vendor.name"
+                  value={ruleName}
+                  onChange={(event) => setRuleName(event.target.value)}
                 />
 
-                <label>Match type</label>
+                <label htmlFor="data-map-rule-extractor">Extractor</label>
                 <select
-                  value={lookup.matchType || 'exact'}
-                  onChange={(event) => updateLookup(index, 'matchType', event.target.value)}
+                  id="data-map-rule-extractor"
+                  value={extractorName}
+                  onChange={(event) => setExtractorName(event.target.value)}
                 >
-                  <option value="exact">Exact match</option>
-                  <option value="fuzzy">Fuzzy match</option>
+                  <option value="">Select extractor</option>
+                  {extractors.map((extractor) => (
+                    <option key={extractor.id} value={extractor.name}>
+                      {extractor.name}
+                    </option>
+                  ))}
                 </select>
+              </div>
+            </section>
+          ) : null}
 
-                {lookup.matchType === 'fuzzy' ? (
-                  <>
-                    <label>Match threshold (%)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      value={lookup.threshold ?? 90}
-                      onChange={(event) => updateLookup(index, 'threshold', Number(event.target.value))}
-                    />
-                  </>
-                ) : null}
+          {activeSection === 'targets' ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Map Targets</h2>
+                  <p>Choose which schema fields to populate from your data map set.</p>
+                </div>
+                <button type="button" className="btn btn-outline" onClick={addMapTarget}>
+                  Add Map Target
+                </button>
+              </div>
 
-                <div className="panel-actions">
-                  <button type="button" className="btn btn-ghost" onClick={() => removeLookup(index)}>
-                    Remove Lookup
-                  </button>
+              {mapTargets.length === 0 ? <p>No map targets yet.</p> : null}
+
+              {mapTargets.map((target, index) => (
+                <div className="form-grid" key={`map-target-${index}`}>
+                  <label>Schema field path</label>
+                  <input
+                    type="text"
+                    value={target.schemaFieldPath || ''}
+                    onChange={(event) => updateMapTarget(index, 'schemaFieldPath', event.target.value)}
+                    placeholder="vendor.code"
+                  />
+
+                  <label>Data map set</label>
+                  <select
+                    value={target.setId || ''}
+                    onChange={(event) => updateMapTarget(index, 'setId', event.target.value)}
+                  >
+                    <option value="">Select set</option>
+                    {setOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Set column</label>
+                  <select
+                    value={target.setColumn || ''}
+                    onChange={(event) => updateMapTarget(index, 'setColumn', event.target.value)}
+                    disabled={!target.setId}
+                  >
+                    <option value="">Select column</option>
+                    {headersForSet(target.setId).map((header) => (
+                      <option key={header} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Mode</label>
+                  <select
+                    value={target.mode || 'map'}
+                    onChange={(event) => updateMapTarget(index, 'mode', event.target.value)}
+                  >
+                    <option value="map">Map</option>
+                    <option value="calculation">Calculation</option>
+                  </select>
+
+                  {target.mode === 'calculation' ? (
+                    <>
+                      <label>Calculation expression</label>
+                      <input
+                        type="text"
+                        value={target.calculation || ''}
+                        onChange={(event) => updateMapTarget(index, 'calculation', event.target.value)}
+                        placeholder="quantity * conversion"
+                      />
+                    </>
+                  ) : null}
+
+                  <div className="panel-actions">
+                    <button type="button" className="btn btn-ghost" onClick={() => removeMapTarget(index)}>
+                      Remove Target
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          ) : null}
+
+          {activeSection === 'lookups' ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Lookups</h2>
+                  <p>Define how the system finds matching rows in the data map set.</p>
+                </div>
+                <button type="button" className="btn btn-outline" onClick={addLookup}>
+                  Add Lookup
+                </button>
+              </div>
+
+              {lookups.length === 0 ? <p>No lookups yet.</p> : null}
+
+              {lookups.map((lookup, index) => (
+                <div className="form-grid" key={`lookup-${index}`}>
+                  <label>Data map set</label>
+                  <select
+                    value={lookup.setId || ''}
+                    onChange={(event) => updateLookup(index, 'setId', event.target.value)}
+                  >
+                    <option value="">Select set</option>
+                    {setOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Set column</label>
+                  <select
+                    value={lookup.setColumn || ''}
+                    onChange={(event) => updateLookup(index, 'setColumn', event.target.value)}
+                    disabled={!lookup.setId}
+                  >
+                    <option value="">Select column</option>
+                    {headersForSet(lookup.setId).map((header) => (
+                      <option key={header} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label>Schema field to match</label>
+                  <input
+                    type="text"
+                    value={lookup.schemaFieldPath || ''}
+                    onChange={(event) => updateLookup(index, 'schemaFieldPath', event.target.value)}
+                    placeholder="vendor.name"
+                  />
+
+                  <label>Match type</label>
+                  <select
+                    value={lookup.matchType || 'exact'}
+                    onChange={(event) => updateLookup(index, 'matchType', event.target.value)}
+                  >
+                    <option value="exact">Exact match</option>
+                    <option value="fuzzy">Fuzzy match</option>
+                  </select>
+
+                  {lookup.matchType === 'fuzzy' ? (
+                    <>
+                      <label>Match threshold (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={lookup.threshold ?? 90}
+                        onChange={(event) => updateLookup(index, 'threshold', Number(event.target.value))}
+                      />
+                    </>
+                  ) : null}
+
+                  <div className="panel-actions">
+                    <button type="button" className="btn btn-ghost" onClick={() => removeLookup(index)}>
+                      Remove Lookup
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </section>
+          ) : null}
+
+          {!isNew && activeSection === 'usage' ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Workflow Usage</h2>
+                  <p>Jump to the nodes using this data map rule.</p>
                 </div>
               </div>
-            ))}
-          </section>
+              <UsageList usages={nodeUsages} />
+            </section>
+          ) : null}
         </>
       ) : null}
     </div>

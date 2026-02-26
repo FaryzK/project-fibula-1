@@ -167,60 +167,62 @@ function WorkflowCanvasContent({ workflowId }) {
       return;
     }
 
-    if (!assignExtractorId && !assignFolderId && !assignReconciliationId) {
-      return;
-    }
-
+    const shouldAssign = Boolean(assignExtractorId || assignFolderId || assignReconciliationId);
     let targetPosition = null;
 
-    setNodes((currentNodes) =>
-      currentNodes.map((node) => {
-        if (node.id !== nodeId) {
-          return node;
-        }
-
-        targetPosition = node.position;
-        const nextConfig = { ...(node.data.config || {}) };
-
-        if (assignExtractorId) {
-          const selected = extractors.find((item) => item.id === assignExtractorId);
-          nextConfig.extractorId = assignExtractorId;
-          nextConfig.extractorName = selected?.name || '';
-        }
-
-        if (assignFolderId) {
-          const selected = documentFolders.find((item) => item.id === assignFolderId);
-          nextConfig.folderId = assignFolderId;
-          nextConfig.folderName = selected?.name || '';
-        }
-
-        if (assignReconciliationId) {
-          const selected = reconciliationRules.find((item) => item.id === assignReconciliationId);
-          nextConfig.reconciliationRuleId = assignReconciliationId;
-          nextConfig.reconciliationRuleName = selected?.name || '';
-        }
-
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            config: nextConfig
+    if (shouldAssign) {
+      setNodes((currentNodes) =>
+        currentNodes.map((node) => {
+          if (node.id !== nodeId) {
+            return node;
           }
-        };
-      })
-    );
+
+          targetPosition = node.position;
+          const nextConfig = { ...(node.data.config || {}) };
+
+          if (assignExtractorId) {
+            const selected = extractors.find((item) => item.id === assignExtractorId);
+            nextConfig.extractorId = assignExtractorId;
+            nextConfig.extractorName = selected?.name || '';
+          }
+
+          if (assignFolderId) {
+            const selected = documentFolders.find((item) => item.id === assignFolderId);
+            nextConfig.folderId = assignFolderId;
+            nextConfig.folderName = selected?.name || '';
+          }
+
+          if (assignReconciliationId) {
+            const selected = reconciliationRules.find((item) => item.id === assignReconciliationId);
+            nextConfig.reconciliationRuleId = assignReconciliationId;
+            nextConfig.reconciliationRuleName = selected?.name || '';
+          }
+
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              config: nextConfig
+            }
+          };
+        })
+      );
+    } else {
+      const existingNode = nodes.find((node) => node.id === nodeId);
+      targetPosition = existingNode?.position || null;
+    }
 
     if (targetPosition) {
       setSelectedNodeId(nodeId);
       reactFlow.setCenter(targetPosition.x + 100, targetPosition.y + 40, { zoom: 1 });
+      navigate(location.pathname, { replace: true });
     }
-
-    navigate(location.pathname, { replace: true });
   }, [
     location.search,
     location.pathname,
     navigate,
     setNodes,
+    nodes,
     extractors,
     documentFolders,
     reconciliationRules

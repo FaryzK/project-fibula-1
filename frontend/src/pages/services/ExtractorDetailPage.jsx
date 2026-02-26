@@ -5,6 +5,7 @@ import {
   listExtractors,
   updateExtractor
 } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 const DEFAULT_SCHEMA = {
   headerFields: [],
@@ -214,6 +215,17 @@ export function ExtractorDetailPage() {
 
   const requiredHeaderCount = (schema.headerFields || []).filter((item) => item.required).length;
   const requiredTableCount = (schema.tableTypes || []).filter((item) => item.required).length;
+  const heldDocuments = extractorMeta?.heldDocuments || [];
+  const formatTimestamp = (value) => {
+    if (!value) {
+      return 'Unknown';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Unknown';
+    }
+    return parsed.toLocaleString();
+  };
 
   return (
     <div className="panel-stack">
@@ -471,6 +483,69 @@ export function ExtractorDetailPage() {
               Next
             </button>
           </div>
+
+          {extractorMeta ? (
+            <div className="panel-grid">
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Held Documents</h2>
+                    <p>Documents waiting for operator review.</p>
+                  </div>
+                </div>
+                {heldDocuments.length === 0 ? (
+                  <p className="muted-text">No held documents for this extractor.</p>
+                ) : (
+                  <div className="data-table">
+                    <div className="data-header four-col">
+                      <span>Document</span>
+                      <span>Workflow</span>
+                      <span>Node</span>
+                      <span>Arrived</span>
+                    </div>
+                    {heldDocuments.map((item, index) => (
+                      <div className="data-row four-col" key={item.document?.id || `${index}`}>
+                        <div className="data-cell">
+                          <span className="card-title">
+                            {item.document?.fileName || item.document?.id || 'Document'}
+                          </span>
+                          <span className="data-meta">{item.document?.id || 'No ID'}</span>
+                        </div>
+                        <div className="data-cell">
+                          {item.workflowId ? (
+                            <Link
+                              className="btn btn-ghost"
+                              to={`/app/workflows/${item.workflowId}/canvas?nodeId=${item.nodeId}`}
+                            >
+                              {item.workflowName || 'Workflow'}
+                            </Link>
+                          ) : (
+                            <span className="data-meta">Workflow pending</span>
+                          )}
+                        </div>
+                        <div className="data-cell">
+                          <span className="data-meta">{item.nodeName || 'Node'}</span>
+                        </div>
+                        <div className="data-cell">
+                          <span className="data-meta">{formatTimestamp(item.arrivedAt)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Workflow Usage</h2>
+                    <p>Jump to the nodes using this extractor.</p>
+                  </div>
+                </div>
+                <UsageList usages={extractorMeta.nodeUsages || []} />
+              </section>
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

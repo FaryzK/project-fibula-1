@@ -22,6 +22,7 @@ export function DashboardPage() {
     dataMapSets: 0,
     dataMapRules: 0
   });
+  const [heldDocuments, setHeldDocuments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorText, setErrorText] = useState('');
 
@@ -66,6 +67,40 @@ export function DashboardPage() {
           dataMapSets: dataMapSets.length,
           dataMapRules: dataMapRules.length
         });
+        const extractorHeldDocs = extractors.flatMap((extractor) =>
+          (extractor.heldDocuments || []).map((held, index) => ({
+            id: held.document?.id || `${extractor.id}-${index}`,
+            documentName: held.document?.fileName || held.document?.id || 'Document',
+            sourceType: 'Extractor',
+            sourceName: extractor.name || 'Extractor',
+            sourceLink: `/app/services/extractors/${extractor.id}`,
+            workflowId: held.workflowId,
+            workflowName: held.workflowName,
+            nodeId: held.nodeId,
+            nodeName: held.nodeName,
+            arrivedAt: held.arrivedAt
+          }))
+        );
+        const folderHeldDocs = folders.flatMap((folder) =>
+          (folder.heldDocuments || []).map((held, index) => ({
+            id: held.document?.id || `${folder.id}-${index}`,
+            documentName: held.document?.fileName || held.document?.id || 'Document',
+            sourceType: 'Folder',
+            sourceName: folder.name || 'Document Folder',
+            sourceLink: `/app/services/document-folders/${folder.id}`,
+            workflowId: held.workflowId,
+            workflowName: held.workflowName,
+            nodeId: held.nodeId,
+            nodeName: held.nodeName,
+            arrivedAt: held.arrivedAt
+          }))
+        );
+        const combinedHeld = [...extractorHeldDocs, ...folderHeldDocs].sort((a, b) => {
+          const left = new Date(a.arrivedAt || 0).getTime();
+          const right = new Date(b.arrivedAt || 0).getTime();
+          return right - left;
+        });
+        setHeldDocuments(combinedHeld.slice(0, 6));
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load dashboard metrics');
       } finally {
@@ -77,6 +112,63 @@ export function DashboardPage() {
   }, []);
 
   const hasHeldDocs = metrics.extractorHeld > 0 || metrics.folderHeld > 0;
+  const journeySteps = [
+    {
+      key: 'extractors',
+      title: 'Define Extractors',
+      description: 'Set schema, table types, and hold rules.',
+      count: metrics.extractors,
+      link: '/app/services/extractors'
+    },
+    {
+      key: 'data-map-sets',
+      title: 'Build Data Map Sets',
+      description: 'Upload lookup tables for enrichment.',
+      count: metrics.dataMapSets,
+      link: '/app/services/data-mapper'
+    },
+    {
+      key: 'data-map-rules',
+      title: 'Create Data Map Rules',
+      description: 'Map fields and configure lookups.',
+      count: metrics.dataMapRules,
+      link: '/app/services/data-mapper'
+    },
+    {
+      key: 'reconciliation',
+      title: 'Set Reconciliation Rules',
+      description: 'Define matching and tolerances.',
+      count: metrics.reconciliationRules,
+      link: '/app/services/reconciliation'
+    },
+    {
+      key: 'folders',
+      title: 'Create Review Folders',
+      description: 'Route documents needing ops review.',
+      count: metrics.documentFolders,
+      link: '/app/services/document-folders'
+    },
+    {
+      key: 'workflows',
+      title: 'Build Workflows',
+      description: 'Connect services on the canvas.',
+      count: metrics.workflows,
+      link: '/app/workflows'
+    }
+  ];
+  const journeyComplete = journeySteps.filter((step) => step.count > 0).length;
+  const journeyTotal = journeySteps.length;
+  const heldCount = metrics.extractorHeld + metrics.folderHeld;
+  const formatTimestamp = (value) => {
+    if (!value) {
+      return 'Unknown';
+    }
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Unknown';
+    }
+    return parsed.toLocaleString();
+  };
 
   return (
     <div className="panel-stack">
@@ -121,53 +213,89 @@ export function DashboardPage() {
             </div>
           </div>
 
-          <section className="panel">
-            <div className="panel-header">
-              <div>
-                <h2>Next Actions</h2>
-                <p>Set up services before building or updating workflows.</p>
-              </div>
-              {hasHeldDocs ? <span className="tag tag-warning">Held documents need review</span> : null}
-            </div>
-            <div className="card-grid">
-              <div className="card-item">
-                <div className="card-title">Extractor Setup</div>
-                <div className="card-meta">Define schemas and hold rules first.</div>
-                <div className="panel-actions">
-                  <Link className="btn btn-outline" to="/app/services/extractors">
-                    Go to Extractors
-                  </Link>
+          <div className="dashboard-grid">
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Setup Journey</h2>
+                  <p>Complete the core service setup before publishing workflows.</p>
                 </div>
+                <span className="tag">{journeyComplete}/{journeyTotal} complete</span>
               </div>
-              <div className="card-item">
-                <div className="card-title">Data Mapper</div>
-                <div className="card-meta">Create lookup sets and enrichment rules.</div>
-                <div className="panel-actions">
-                  <Link className="btn btn-outline" to="/app/services/data-mapper">
-                    Go to Data Mapper
-                  </Link>
+              <div className="journey-list">
+                {journeySteps.map((step, index) => (
+                  <div
+                    className={`journey-step ${step.count > 0 ? 'ready' : ''}`}
+                    key={step.key}
+                  >
+                    <div className="journey-index">{index + 1}</div>
+                    <div className="journey-body">
+                      <div className="journey-title">{step.title}</div>
+                      <div className="journey-meta">{step.description}</div>
+                    </div>
+                    <div className="journey-actions">
+                      <span className={`tag ${step.count > 0 ? 'tag-accent' : ''}`}>
+                        {step.count > 0 ? 'Ready' : 'Not started'}
+                      </span>
+                      <Link className="btn btn-outline" to={step.link}>
+                        Open
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Live Holds</h2>
+                  <p>Documents awaiting manual review or release.</p>
                 </div>
+                {hasHeldDocs ? <span className="tag tag-warning">{heldCount} held</span> : null}
               </div>
-              <div className="card-item">
-                <div className="card-title">Reconciliation</div>
-                <div className="card-meta">Build matching rules before adding the node.</div>
-                <div className="panel-actions">
-                  <Link className="btn btn-outline" to="/app/services/reconciliation">
-                    Go to Reconciliation
-                  </Link>
+              {heldDocuments.length === 0 ? (
+                <p className="muted-text">No held documents right now.</p>
+              ) : (
+                <div className="data-table">
+                  <div className="data-header four-col">
+                    <span>Document</span>
+                    <span>Source</span>
+                    <span>Workflow</span>
+                    <span>Arrived</span>
+                  </div>
+                  {heldDocuments.map((item) => (
+                    <div className="data-row four-col" key={item.id}>
+                      <div className="data-cell">
+                        <span className="card-title">{item.documentName}</span>
+                        <span className="data-meta">{item.sourceType}</span>
+                      </div>
+                      <div className="data-cell">
+                        <Link className="btn btn-ghost" to={item.sourceLink}>
+                          {item.sourceName}
+                        </Link>
+                      </div>
+                      <div className="data-cell">
+                        {item.workflowId ? (
+                          <Link
+                            className="btn btn-ghost"
+                            to={`/app/workflows/${item.workflowId}/canvas?nodeId=${item.nodeId}`}
+                          >
+                            {item.workflowName || 'Workflow'} · {item.nodeName || 'Node'}
+                          </Link>
+                        ) : (
+                          <span className="data-meta">Workflow pending</span>
+                        )}
+                      </div>
+                      <div className="data-cell">
+                        <span className="data-meta">{formatTimestamp(item.arrivedAt)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
-              <div className="card-item">
-                <div className="card-title">Workflow Build</div>
-                <div className="card-meta">Connect your configured services on the canvas.</div>
-                <div className="panel-actions">
-                  <Link className="btn btn-outline" to="/app/workflows">
-                    Go to Workflows
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </section>
+              )}
+            </section>
+          </div>
         </>
       ) : null}
     </div>
