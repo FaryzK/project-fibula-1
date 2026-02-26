@@ -1,7 +1,13 @@
 import React from 'react';
 import { Handle, Position } from '@xyflow/react';
+import { getNodePorts } from '../../pages/coreNodeUtils';
 
 export function CanvasNodeCard({ id, data }) {
+  const ports = getNodePorts({
+    nodeTypeKey: data.nodeTypeKey,
+    config: data.config
+  });
+
   return (
     <div
       onDoubleClick={() => data.onRename(id)}
@@ -16,18 +22,19 @@ export function CanvasNodeCard({ id, data }) {
         position: 'relative'
       }}
     >
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="in-primary"
-        style={{ top: '35%', width: 8, height: 8, background: '#0f172a' }}
-      />
-      <Handle
-        type="target"
-        position={Position.Left}
-        id="in-secondary"
-        style={{ top: '70%', width: 8, height: 8, background: '#0f172a' }}
-      />
+      {ports.inputs.map((port, index) => {
+        const top = ports.inputs.length === 1 ? '50%' : `${((index + 1) / (ports.inputs.length + 1)) * 100}%`;
+
+        return (
+          <Handle
+            key={port.id}
+            type="target"
+            position={Position.Left}
+            id={port.id}
+            style={{ top, width: 8, height: 8, background: '#0f172a' }}
+          />
+        );
+      })}
 
       <div style={{ fontSize: 14, fontWeight: 700 }}>
         <span style={{ marginRight: 6 }}>{data.icon}</span>
@@ -35,18 +42,20 @@ export function CanvasNodeCard({ id, data }) {
       </div>
       <div style={{ marginTop: 6, fontSize: 11, opacity: 0.7 }}>{data.nodeTypeKey}</div>
 
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="out-primary"
-        style={{ top: '35%', width: 8, height: 8, background: '#0f172a' }}
-      />
-      <Handle
-        type="source"
-        position={Position.Right}
-        id="out-secondary"
-        style={{ top: '70%', width: 8, height: 8, background: '#0f172a' }}
-      />
+      {ports.outputs.map((port, index) => {
+        const top =
+          ports.outputs.length === 1 ? '50%' : `${((index + 1) / (ports.outputs.length + 1)) * 100}%`;
+
+        return (
+          <Handle
+            key={port.id}
+            type="source"
+            position={Position.Right}
+            id={port.id}
+            style={{ top, width: 8, height: 8, background: '#0f172a' }}
+          />
+        );
+      })}
 
       <button
         type="button"
