@@ -4,6 +4,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
 import { AppHomePage } from './pages/AppHomePage';
 import { SettingsPage } from './pages/SettingsPage';
+import { WorkflowCanvasPage } from './pages/WorkflowCanvasPage';
 import { useAuthStore } from './stores/authStore';
 
 export function AppRoutes() {
@@ -39,6 +40,14 @@ export function AppRoutes() {
         element={
           <ProtectedRoute>
             <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/workflows/:workflowId/canvas"
+        element={
+          <ProtectedRoute>
+            <WorkflowCanvasPage />
           </ProtectedRoute>
         }
       />

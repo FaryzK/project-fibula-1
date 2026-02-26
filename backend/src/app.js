@@ -3,6 +3,7 @@ const cors = require('cors');
 const healthRouter = require('./routes/health.routes');
 const authRouter = require('./routes/auth.routes');
 const usersRouter = require('./routes/users.routes');
+const workflowsRouter = require('./routes/workflows.routes');
 
 const app = express();
 
@@ -12,5 +13,6 @@ app.use(express.json());
 app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/workflows', workflowsRouter);
 
 module.exports = app;
