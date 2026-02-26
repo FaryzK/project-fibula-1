@@ -68,6 +68,7 @@ export function ExtractorDetailPage() {
   const [documentPage, setDocumentPage] = useState(1);
   const [isDocumentLoading, setIsDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState('');
+  const [useNativePdfView, setUseNativePdfView] = useState(false);
   const pdfRef = useRef(null);
   const pdfDocRef = useRef(null);
 
@@ -759,6 +760,7 @@ export function ExtractorDetailPage() {
     setModalTarget(null);
     setModalFeedbackText('');
     setModalFeedbackError('');
+    setUseNativePdfView(false);
   }, [uploadedDocument]);
 
   useEffect(() => {
@@ -780,6 +782,7 @@ export function ExtractorDetailPage() {
     setDocumentPages(1);
     setDocumentPage(1);
     setDocumentError('');
+    setUseNativePdfView(false);
     if (nextType !== 'application/pdf') {
       setIsDocumentLoading(false);
       pdfDocRef.current = null;
@@ -1251,8 +1254,17 @@ export function ExtractorDetailPage() {
                       <input
                         id="feedback-upload"
                         type="file"
+                        accept="application/pdf,image/*"
                         onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
                       />
+                      {uploadedDocument ? (
+                        <div className="file-summary">
+                          <span className="card-title">{uploadedDocument.name}</span>
+                          <span className="data-meta">
+                            {(uploadedDocument.size / 1024).toFixed(1)} KB · {uploadedDocument.type || 'file'}
+                          </span>
+                        </div>
+                      ) : null}
                     </div>
                     <button
                       type="button"
@@ -1268,6 +1280,15 @@ export function ExtractorDetailPage() {
                       documentType === 'application/pdf' ? (
                         <>
                           {isDocumentLoading ? <p className="muted-text">Loading document…</p> : null}
+                          <div className="pdf-actions">
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => setUseNativePdfView((current) => !current)}
+                            >
+                              {useNativePdfView ? 'Use rendered view' : 'Use native viewer'}
+                            </button>
+                          </div>
                           {documentError ? (
                             <div className="pdf-fallback">
                               <p className="status-error">{documentError}</p>
@@ -1277,6 +1298,10 @@ export function ExtractorDetailPage() {
                                 </object>
                               ) : null}
                             </div>
+                          ) : useNativePdfView ? (
+                            <object data={documentUrl} type="application/pdf" className="pdf-object">
+                              <p className="muted-text">Preview unavailable. Open the PDF in a new tab.</p>
+                            </object>
                           ) : (
                             <>
                               <canvas ref={pdfRef} className="pdf-canvas" />
@@ -1322,6 +1347,7 @@ export function ExtractorDetailPage() {
                       <p>Select a field or table cell to leave feedback.</p>
                     </div>
                   </div>
+                  {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
                   {usedFeedbackLabels.length ? (
                     <div className="tag-row">
                       <span className="tag">Using feedback from</span>
