@@ -74,7 +74,8 @@ async function runExtractorInference({ userId, extractorId, file }) {
 
   const summary = await generateDocumentSummary({
     buffer: file.buffer,
-    mimeType: file.mimetype
+    mimeType: file.mimetype,
+    filename: file.originalname
   });
   const embedding = await generateTextEmbedding(summary);
 
@@ -84,6 +85,7 @@ async function runExtractorInference({ userId, extractorId, file }) {
   const extraction = await runExtraction({
     buffer: file.buffer,
     mimeType: file.mimetype,
+    filename: file.originalname,
     schema: extractor.schema || { headerFields: [], tableTypes: [] },
     feedbacks: relevantFeedbacks
   });
@@ -112,7 +114,8 @@ async function addTrainingFeedbackWithDocument({
   const feedbackId = randomUUID();
   const summary = await generateDocumentSummary({
     buffer: file.buffer,
-    mimeType: file.mimetype
+    mimeType: file.mimetype,
+    filename: file.originalname
   });
   const embedding = await generateTextEmbedding(summary);
 

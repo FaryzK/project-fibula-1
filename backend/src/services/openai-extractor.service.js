@@ -16,10 +16,32 @@ function toDataUrl(buffer, mimeType) {
   return `data:${safeType};base64,${base64}`;
 }
 
-async function generateDocumentSummary({ buffer, mimeType }) {
+function buildInputPart({ buffer, mimeType, filename }) {
+  if (mimeType === 'application/pdf') {
+    return {
+      type: 'input_file',
+      filename: filename || 'document.pdf',
+      file_data: buffer.toString('base64')
+    };
+  }
+
+  if (mimeType && mimeType.startsWith('image/')) {
+    return {
+      type: 'input_image',
+      image_url: toDataUrl(buffer, mimeType)
+    };
+  }
+
+  throw new Error('Unsupported document type. Please upload an image or PDF.');
+}
+
+async function generateDocumentSummary({ buffer, mimeType, filename }) {
   const openai = getOpenAIClient();
   const response = await openai.responses.create({
-    model: process.env.OPENAI_VLM_MODEL || 'gpt-4.1-mini',
+    model:
+      mimeType === 'application/pdf'
+        ? process.env.OPENAI_PDF_MODEL || 'gpt-4o-mini'
+        : process.env.OPENAI_VLM_MODEL || 'gpt-4.1-mini',
     input: [
       {
         role: 'user',
@@ -29,10 +51,7 @@ async function generateDocumentSummary({ buffer, mimeType }) {
             text:
               'Summarize this document in 2-3 sentences. Focus on key fields and tables that appear.'
           },
-          {
-            type: 'input_image',
-            image_url: toDataUrl(buffer, mimeType)
-          }
+          buildInputPart({ buffer, mimeType, filename })
         ]
       }
     ]
@@ -83,20 +102,23 @@ function formatFeedbackContext(feedbacks) {
     .join('\n');
 }
 
-async function runExtraction({ buffer, mimeType, schema, feedbacks }) {
+async function runExtraction({ buffer, mimeType, filename, schema, feedbacks }) {
   const openai = getOpenAIClient();
   const prompt = `You are extracting structured data from a document.\n\nSchema:\n${formatSchemaInstructions(
     schema
   )}\n\nFeedback to apply:\n${formatFeedbackContext(feedbacks)}\n\nReturn JSON with this exact shape:\n{\n  "headerFields": [{"fieldName": "", "value": ""}],\n  "tableTypes": [{"tableName": "", "columns": [{"columnName": "", "value": ""}]}]\n}\nUse null if a value is missing.`;
 
   const response = await openai.responses.create({
-    model: process.env.OPENAI_VLM_MODEL || 'gpt-4.1-mini',
+    model:
+      mimeType === 'application/pdf'
+        ? process.env.OPENAI_PDF_MODEL || 'gpt-4o-mini'
+        : process.env.OPENAI_VLM_MODEL || 'gpt-4.1-mini',
     input: [
       {
         role: 'user',
         content: [
           { type: 'input_text', text: prompt },
-          { type: 'input_image', image_url: toDataUrl(buffer, mimeType) }
+          buildInputPart({ buffer, mimeType, filename })
         ]
       }
     ]
