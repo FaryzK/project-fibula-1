@@ -196,6 +196,24 @@ export function getDefaultNodeConfig(nodeTypeKey) {
     };
   }
 
+  if (nodeTypeKey === 'webhook') {
+    return {
+      expectedMethod: 'POST',
+      webhookPath: '',
+      webhookUrl: '',
+      description: ''
+    };
+  }
+
+  if (nodeTypeKey === 'http') {
+    return {
+      url: '',
+      method: 'POST',
+      headersText: '{}',
+      bodyText: '{}'
+    };
+  }
+
   return {};
 }
 
@@ -204,7 +222,7 @@ export function getNodePorts(nodeData) {
   const outputs = [];
   const inputs = [];
 
-  if (nodeTypeKey !== 'manual_upload') {
+  if (nodeTypeKey !== 'manual_upload' && nodeTypeKey !== 'webhook') {
     inputs.push({ id: 'in-primary', label: 'In' });
   }
 

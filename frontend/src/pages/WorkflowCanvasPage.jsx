@@ -46,6 +46,7 @@ const BASE_MENU_TEXT = {
   input: 'Document and metadata',
   output: 'Node-specific output signal/document'
 };
+const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
 
 function createNodeId() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
@@ -61,6 +62,22 @@ function safeParseJson(text) {
   } catch (_error) {
     return { value: null, error: 'Sample metadata must be valid JSON.' };
   }
+}
+
+function getBackendBaseUrl() {
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+  return apiBaseUrl.replace(/\/api\/?$/, '');
+}
+
+function buildWebhookConfig(workflowId, nodeId) {
+  const webhookPath = `/api/webhooks/${workflowId}/${nodeId}`;
+
+  return {
+    expectedMethod: 'POST',
+    webhookPath,
+    webhookUrl: `${getBackendBaseUrl()}${webhookPath}`,
+    description: ''
+  };
 }
 
 function WorkflowCanvasContent({ workflowId }) {
@@ -141,12 +158,15 @@ function WorkflowCanvasContent({ workflowId }) {
     setIsNodeLibraryOpen(true);
   }
 
-  function createNodeData(template) {
+  function createNodeData(template, nodeId) {
+    const baseConfig = getDefaultNodeConfig(template.key);
+    const config = template.key === 'webhook' ? buildWebhookConfig(workflowId, nodeId) : baseConfig;
+
     return {
       label: template.label,
       icon: template.icon,
       nodeTypeKey: template.key,
-      config: getDefaultNodeConfig(template.key),
+      config,
       createdAt: new Date().toISOString(),
       onRename: renameNode,
       onQuickAdd: openBranchLibrary
@@ -175,7 +195,7 @@ function WorkflowCanvasContent({ workflowId }) {
       id: nodeId,
       type: 'fibulaNode',
       position,
-      data: createNodeData(template)
+      data: createNodeData(template, nodeId)
     };
 
     setNodes((currentNodes) => [...currentNodes, nextNode]);
@@ -571,6 +591,142 @@ function WorkflowCanvasContent({ workflowId }) {
     );
   }
 
+  function renderWebhookEditor(node) {
+    const config = node.data.config || {};
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> Inbound HTTP POST payload (JSON or file + metadata)
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> Document and metadata derived from webhook payload
+        </p>
+        <label htmlFor={`webhook-url-${node.id}`}>Webhook URL</label>
+        <input
+          id={`webhook-url-${node.id}`}
+          type="text"
+          value={config.webhookUrl || ''}
+          readOnly
+          style={{ width: '100%' }}
+        />
+        <button
+          type="button"
+          onClick={async () => {
+            if (!navigator.clipboard || !config.webhookUrl) {
+              setPreviewResult('Clipboard is unavailable in this browser.');
+              return;
+            }
+
+            await navigator.clipboard.writeText(config.webhookUrl);
+            setPreviewResult('Webhook URL copied to clipboard.');
+          }}
+        >
+          Copy URL
+        </button>
+        <p style={{ marginBottom: 4 }}>
+          Expected input method: <strong>{config.expectedMethod || 'POST'}</strong>
+        </p>
+        <label htmlFor={`webhook-description-${node.id}`}>Description (optional)</label>
+        <textarea
+          id={`webhook-description-${node.id}`}
+          rows={3}
+          value={config.description || ''}
+          onChange={(event) => {
+            const nextDescription = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              description: nextDescription
+            }));
+          }}
+          style={{ width: '100%' }}
+        />
+      </>
+    );
+  }
+
+  function renderHttpEditor(node) {
+    const config = node.data.config || {};
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> Document and metadata
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> Pass-through document and metadata with appended HTTP response
+        </p>
+        <label htmlFor={`http-url-${node.id}`}>URL</label>
+        <input
+          id={`http-url-${node.id}`}
+          type="text"
+          value={config.url || ''}
+          onChange={(event) => {
+            const nextUrl = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              url: nextUrl
+            }));
+          }}
+          placeholder="https://api.example.com/endpoint"
+          style={{ width: '100%' }}
+        />
+        <label htmlFor={`http-method-${node.id}`}>Method</label>
+        <br />
+        <select
+          id={`http-method-${node.id}`}
+          value={config.method || 'POST'}
+          onChange={(event) => {
+            const nextMethod = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              method: nextMethod
+            }));
+          }}
+        >
+          {HTTP_METHODS.map((method) => (
+            <option key={method} value={method}>
+              {method}
+            </option>
+          ))}
+        </select>
+        <br />
+        <label htmlFor={`http-headers-${node.id}`}>Headers (JSON)</label>
+        <textarea
+          id={`http-headers-${node.id}`}
+          rows={4}
+          value={config.headersText || '{}'}
+          onChange={(event) => {
+            const nextHeadersText = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              headersText: nextHeadersText
+            }));
+          }}
+          style={{ width: '100%' }}
+        />
+        <label htmlFor={`http-body-${node.id}`}>Body (JSON)</label>
+        <textarea
+          id={`http-body-${node.id}`}
+          rows={5}
+          value={config.bodyText || '{}'}
+          onChange={(event) => {
+            const nextBodyText = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              bodyText: nextBodyText
+            }));
+          }}
+          style={{ width: '100%' }}
+        />
+        <p style={{ marginBottom: 4 }}>
+          Use expressions like <code>{'{{ $metadata.invoiceNumber }}'}</code> or{' '}
+          <code>{'{{ $document.id }}'}</code> in URL, headers, and body.
+        </p>
+      </>
+    );
+  }
+
   function renderNodeMenu(node) {
     if (node.data.nodeTypeKey === 'manual_upload') {
       return (
@@ -598,6 +754,14 @@ function WorkflowCanvasContent({ workflowId }) {
 
     if (node.data.nodeTypeKey === 'set_value') {
       return renderSetValueEditor(node);
+    }
+
+    if (node.data.nodeTypeKey === 'webhook') {
+      return renderWebhookEditor(node);
+    }
+
+    if (node.data.nodeTypeKey === 'http') {
+      return renderHttpEditor(node);
     }
 
     return (
