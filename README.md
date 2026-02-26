@@ -30,3 +30,8 @@ Workflow-first ETL platform for document processing. Users build workflows on a 
 
 ## Source of truth
 Feature behavior is defined in `/requirements`. Read relevant requirement docs before implementing each feature.
+
+## Local Development Ports
+- `project-fibula-1` frontend (Vite): `http://localhost:5174`
+- `project-fibula-1` backend (Express): `http://localhost:4000`
+- Frontend API base URL should be `VITE_API_BASE_URL=http://localhost:4000/api`
