@@ -47,30 +47,34 @@ export function AppLayout() {
             <div className="brand-subtitle">Workflow-first document ETL</div>
           </div>
         </div>
-      </header>
-
-      <div className="workspace-grid">
-        <aside className="workspace-nav">
-          <div className="user-card">
-            <div className="user-avatar">{initials || fallbackInitial}</div>
-            <div>
-              <div className="user-name">
+        <div className="topbar-actions">
+          <details className="user-menu">
+            <summary className="user-menu-trigger">
+              <span className="user-avatar user-avatar-sm">{initials || fallbackInitial}</span>
+              <span className="user-menu-label">
+                {profile?.firstName || user?.email || 'Account'}
+              </span>
+            </summary>
+            <div className="user-menu-panel">
+              <div className="user-menu-name">
                 {profile?.firstName || profile?.lastName
                   ? `${profile?.firstName || ''} ${profile?.lastName || ''}`.trim()
                   : 'Welcome'}
               </div>
-              <div className="user-email">{user?.email || 'unknown user'}</div>
+              <div className="user-menu-email">{user?.email || 'unknown user'}</div>
+              <NavLink className="btn btn-ghost" to="/app/settings">
+                Profile & Preferences
+              </NavLink>
+              <button type="button" className="btn btn-soft" onClick={signOut}>
+                Sign out
+              </button>
             </div>
-          </div>
-          <div className="user-actions">
-            <NavLink className="btn btn-ghost" to="/app/settings">
-              Profile & Preferences
-            </NavLink>
-            <button type="button" className="btn btn-soft" onClick={signOut}>
-              Sign out
-            </button>
-          </div>
+          </details>
+        </div>
+      </header>
 
+      <div className="workspace-grid">
+        <aside className="workspace-nav">
           {NAV_SECTIONS.map((section) => (
             <div key={section.title}>
               <div className="nav-section-title">{section.title}</div>

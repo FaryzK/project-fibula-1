@@ -27,6 +27,7 @@ import {
 } from './workflowCanvasUtils';
 import { listDocumentFolders, listExtractors } from '../services/configServiceNodesApi';
 import { listReconciliationRules } from '../services/dataMapperReconciliationApi';
+import { useWorkflowStore } from '../stores/workflowStore';
 
 const NODE_LIBRARY = [
   { key: 'manual_upload', label: 'Manual Upload', icon: 'U' },
@@ -87,6 +88,9 @@ function WorkflowCanvasContent({ workflowId }) {
   const navigate = useNavigate();
   const reactFlow = useReactFlow();
   const canvasWrapperRef = useRef(null);
+  const workflows = useWorkflowStore((state) => state.workflows);
+  const loadWorkflows = useWorkflowStore((state) => state.loadWorkflows);
+  const renameWorkflow = useWorkflowStore((state) => state.renameWorkflow);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
@@ -109,6 +113,9 @@ function WorkflowCanvasContent({ workflowId }) {
   const [documentFolders, setDocumentFolders] = useState([]);
   const [reconciliationRules, setReconciliationRules] = useState([]);
   const [serviceError, setServiceError] = useState('');
+  const [workflowName, setWorkflowName] = useState('');
+  const [workflowNameDraft, setWorkflowNameDraft] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
 
   const filteredTemplates = useMemo(() => {
     return filterNodeTemplates(NODE_LIBRARY, nodeSearchQuery);
@@ -151,6 +158,35 @@ function WorkflowCanvasContent({ workflowId }) {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!workflows.length) {
+      loadWorkflows();
+    }
+  }, [workflows.length, loadWorkflows]);
+
+  useEffect(() => {
+    const workflow = workflows.find((item) => item.id === workflowId);
+    if (!workflow) {
+      return;
+    }
+    const name = workflow.name || 'Untitled workflow';
+    setWorkflowName(name);
+    setWorkflowNameDraft(name);
+  }, [workflows, workflowId]);
+
+  async function commitWorkflowName() {
+    if (!workflowNameDraft.trim()) {
+      setWorkflowNameDraft(workflowName || 'Untitled workflow');
+      return;
+    }
+    if (workflowNameDraft.trim() === workflowName) {
+      return;
+    }
+    setIsRenaming(true);
+    await renameWorkflow(workflowId, workflowNameDraft.trim());
+    setIsRenaming(false);
+  }
 
   useEffect(() => {
     if (!location.search) {
@@ -1065,11 +1101,31 @@ function WorkflowCanvasContent({ workflowId }) {
   return (
     <main className="canvas-shell">
       <header className="canvas-topbar">
-        <div className="brand-block">
-          <div className="brand-mark">F</div>
-          <div>
-            <div className="brand-title">Workflow Canvas</div>
-            <div className="brand-subtitle">Workflow ID: {workflowId}</div>
+        <div className="canvas-header">
+          <div className="brand-block">
+            <div className="brand-mark">F</div>
+            <div>
+              <div className="brand-title">Workflow Canvas</div>
+              <div className="brand-subtitle">Workflow ID: {workflowId}</div>
+            </div>
+          </div>
+          <div className="workflow-name">
+            <label htmlFor="workflow-name-input">Workflow name</label>
+            <input
+              id="workflow-name-input"
+              type="text"
+              value={workflowNameDraft}
+              onChange={(event) => setWorkflowNameDraft(event.target.value)}
+              onBlur={commitWorkflowName}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.currentTarget.blur();
+                }
+              }}
+              placeholder="Untitled workflow"
+              disabled={isRenaming}
+              autoFocus={workflowNameDraft === 'Untitled workflow'}
+            />
           </div>
         </div>
         <div className="topbar-actions">

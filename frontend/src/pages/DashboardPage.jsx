@@ -172,16 +172,6 @@ export function DashboardPage() {
 
   return (
     <div className="panel-stack">
-      <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Operations</span>
-          <h1>Ops Dashboard</h1>
-          <p className="section-subtitle">
-            Monitor active services, held documents, and configuration coverage.
-          </p>
-        </div>
-      </header>
-
       {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoading ? <p>Loading dashboard metrics...</p> : null}
 

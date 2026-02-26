@@ -79,6 +79,33 @@ export function ExtractorDetailPage() {
     });
   }
 
+  function reorderList(list, fromIndex, toIndex) {
+    if (fromIndex === toIndex) {
+      return list;
+    }
+    const next = [...list];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  }
+
+  function setDragPayload(event, payload) {
+    event.dataTransfer.setData('application/json', JSON.stringify(payload));
+    event.dataTransfer.effectAllowed = 'move';
+  }
+
+  function getDragPayload(event) {
+    const raw = event.dataTransfer.getData('application/json');
+    if (!raw) {
+      return null;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch (_error) {
+      return null;
+    }
+  }
+
   function addHeaderField() {
     setSchema((previous) => ({
       ...previous,
@@ -93,6 +120,18 @@ export function ExtractorDetailPage() {
     setSchema((previous) => ({
       ...previous,
       headerFields: (previous.headerFields || []).filter((_, idx) => idx !== index)
+    }));
+  }
+
+  function handleHeaderDrop(event, targetIndex) {
+    event.preventDefault();
+    const payload = getDragPayload(event);
+    if (!payload || payload.type !== 'header') {
+      return;
+    }
+    setSchema((previous) => ({
+      ...previous,
+      headerFields: reorderList(previous.headerFields || [], payload.index, targetIndex)
     }));
   }
 
@@ -126,6 +165,18 @@ export function ExtractorDetailPage() {
     }));
   }
 
+  function handleTableDrop(event, targetIndex) {
+    event.preventDefault();
+    const payload = getDragPayload(event);
+    if (!payload || payload.type !== 'table') {
+      return;
+    }
+    setSchema((previous) => ({
+      ...previous,
+      tableTypes: reorderList(previous.tableTypes || [], payload.index, targetIndex)
+    }));
+  }
+
   function updateColumn(tableIndex, columnIndex, field, value) {
     setSchema((previous) => {
       const tableTypes = [...(previous.tableTypes || [])];
@@ -153,6 +204,21 @@ export function ExtractorDetailPage() {
       const tableTypes = [...(previous.tableTypes || [])];
       const table = { ...tableTypes[tableIndex] };
       table.columns = (table.columns || []).filter((_, idx) => idx !== columnIndex);
+      tableTypes[tableIndex] = table;
+      return { ...previous, tableTypes };
+    });
+  }
+
+  function handleColumnDrop(event, tableIndex, targetIndex) {
+    event.preventDefault();
+    const payload = getDragPayload(event);
+    if (!payload || payload.type !== 'column' || payload.tableIndex !== tableIndex) {
+      return;
+    }
+    setSchema((previous) => {
+      const tableTypes = [...(previous.tableTypes || [])];
+      const table = { ...tableTypes[tableIndex] };
+      table.columns = reorderList(table.columns || [], payload.index, targetIndex);
       tableTypes[tableIndex] = table;
       return { ...previous, tableTypes };
     });
@@ -309,34 +375,54 @@ export function ExtractorDetailPage() {
                 {(schema.headerFields || []).length === 0 ? <p>No header fields yet.</p> : null}
 
                 {(schema.headerFields || []).map((field, index) => (
-                  <div className="form-grid" key={`header-${index}`}>
-                    <label>Field name</label>
-                    <input
-                      type="text"
-                      value={field.fieldName || ''}
-                      onChange={(event) => updateHeaderField(index, 'fieldName', event.target.value)}
-                      placeholder="InvoiceNumber"
-                    />
-                    <label>Description</label>
-                    <input
-                      type="text"
-                      value={field.description || ''}
-                      onChange={(event) => updateHeaderField(index, 'description', event.target.value)}
-                      placeholder="Invoice number on the document"
-                    />
-                    <label className="checkbox-row">
+                  <div
+                    className="field-row"
+                    key={`header-${index}`}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => handleHeaderDrop(event, index)}
+                  >
+                    <button
+                      type="button"
+                      className="drag-handle"
+                      draggable
+                      onDragStart={(event) => setDragPayload(event, { type: 'header', index })}
+                      aria-label="Reorder header field"
+                    >
+                      ⋮⋮
+                    </button>
+                    <div className="field-inputs">
+                      <input
+                        type="text"
+                        value={field.fieldName || ''}
+                        onChange={(event) => updateHeaderField(index, 'fieldName', event.target.value)}
+                        placeholder="Field name"
+                        aria-label="Field name"
+                      />
+                      <input
+                        type="text"
+                        value={field.description || ''}
+                        onChange={(event) => updateHeaderField(index, 'description', event.target.value)}
+                        placeholder="Description"
+                        aria-label="Field description"
+                      />
+                    </div>
+                    <label className="toggle">
                       <input
                         type="checkbox"
                         checked={Boolean(field.required)}
                         onChange={(event) => updateHeaderField(index, 'required', event.target.checked)}
                       />
-                      Required field
+                      <span className="toggle-track" />
+                      <span className="toggle-label">Required</span>
                     </label>
-                    <div className="panel-actions">
-                      <button type="button" className="btn btn-ghost" onClick={() => removeHeaderField(index)}>
-                        Remove Field
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => removeHeaderField(index)}
+                      aria-label="Remove field"
+                    >
+                      ×
+                    </button>
                   </div>
                 ))}
               </section>
@@ -355,40 +441,55 @@ export function ExtractorDetailPage() {
                 {(schema.tableTypes || []).length === 0 ? <p>No table types yet.</p> : null}
 
                 {(schema.tableTypes || []).map((table, index) => (
-                  <div className="panel" key={`table-${index}`}>
-                    <div className="panel-header">
-                      <div>
-                        <h3>Table Type {index + 1}</h3>
-                        <p>Describe the table and its columns.</p>
-                      </div>
-                      <button type="button" className="btn btn-ghost" onClick={() => removeTableType(index)}>
-                        Remove Table
+                  <div
+                    className="panel"
+                    key={`table-${index}`}
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={(event) => handleTableDrop(event, index)}
+                  >
+                    <div className="table-type-header">
+                      <button
+                        type="button"
+                        className="drag-handle"
+                        draggable
+                        onDragStart={(event) => setDragPayload(event, { type: 'table', index })}
+                        aria-label="Reorder table type"
+                      >
+                        ⋮⋮
                       </button>
-                    </div>
-
-                    <div className="form-grid">
-                      <label>Table name</label>
-                      <input
-                        type="text"
-                        value={table.tableName || ''}
-                        onChange={(event) => updateTableType(index, 'tableName', event.target.value)}
-                        placeholder="Line Items"
-                      />
-                      <label>Description</label>
-                      <input
-                        type="text"
-                        value={table.description || ''}
-                        onChange={(event) => updateTableType(index, 'description', event.target.value)}
-                        placeholder="Rows describing the line items in the invoice"
-                      />
-                      <label className="checkbox-row">
+                      <div className="field-inputs">
+                        <input
+                          type="text"
+                          value={table.tableName || ''}
+                          onChange={(event) => updateTableType(index, 'tableName', event.target.value)}
+                          placeholder="Table name"
+                          aria-label="Table name"
+                        />
+                        <input
+                          type="text"
+                          value={table.description || ''}
+                          onChange={(event) => updateTableType(index, 'description', event.target.value)}
+                          placeholder="Description"
+                          aria-label="Table description"
+                        />
+                      </div>
+                      <label className="toggle">
                         <input
                           type="checkbox"
                           checked={Boolean(table.required)}
                           onChange={(event) => updateTableType(index, 'required', event.target.checked)}
                         />
-                        Required table
+                        <span className="toggle-track" />
+                        <span className="toggle-label">Required</span>
                       </label>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => removeTableType(index)}
+                        aria-label="Remove table"
+                      >
+                        ×
+                      </button>
                     </div>
 
                     <div className="panel-actions">
@@ -398,34 +499,52 @@ export function ExtractorDetailPage() {
                     </div>
 
                     {(table.columns || []).map((column, columnIndex) => (
-                      <div className="form-grid" key={`table-${index}-column-${columnIndex}`}>
-                        <label>Column name</label>
-                        <input
-                          type="text"
-                          value={column.columnName || ''}
-                          onChange={(event) =>
-                            updateColumn(index, columnIndex, 'columnName', event.target.value)
+                      <div
+                        className="field-row"
+                        key={`table-${index}-column-${columnIndex}`}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={(event) => handleColumnDrop(event, index, columnIndex)}
+                      >
+                        <button
+                          type="button"
+                          className="drag-handle"
+                          draggable
+                          onDragStart={(event) =>
+                            setDragPayload(event, { type: 'column', tableIndex: index, index: columnIndex })
                           }
-                          placeholder="ItemDescription"
-                        />
-                        <label>Description</label>
-                        <input
-                          type="text"
-                          value={column.description || ''}
-                          onChange={(event) =>
-                            updateColumn(index, columnIndex, 'description', event.target.value)
-                          }
-                          placeholder="Description of the line item"
-                        />
-                        <div className="panel-actions">
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            onClick={() => removeColumn(index, columnIndex)}
-                          >
-                            Remove Column
-                          </button>
+                          aria-label="Reorder column"
+                        >
+                          ⋮⋮
+                        </button>
+                        <div className="field-inputs">
+                          <input
+                            type="text"
+                            value={column.columnName || ''}
+                            onChange={(event) =>
+                              updateColumn(index, columnIndex, 'columnName', event.target.value)
+                            }
+                            placeholder="Column name"
+                            aria-label="Column name"
+                          />
+                          <input
+                            type="text"
+                            value={column.description || ''}
+                            onChange={(event) =>
+                              updateColumn(index, columnIndex, 'description', event.target.value)
+                            }
+                            placeholder="Description"
+                            aria-label="Column description"
+                          />
                         </div>
+                        <div />
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          onClick={() => removeColumn(index, columnIndex)}
+                          aria-label="Remove column"
+                        >
+                          ×
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -444,13 +563,14 @@ export function ExtractorDetailPage() {
               </div>
 
               <div className="form-grid">
-                <label className="checkbox-row">
+                <label className="toggle">
                   <input
                     type="checkbox"
                     checked={holdAllDocuments}
                     onChange={(event) => setHoldAllDocuments(event.target.checked)}
                   />
-                  Hold all documents in this extractor
+                  <span className="toggle-track" />
+                  <span className="toggle-label">Hold all documents in this extractor</span>
                 </label>
               </div>
 
