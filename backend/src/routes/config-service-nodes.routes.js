@@ -25,32 +25,37 @@ const {
 } = require('../controllers/config-service-nodes.controller');
 
 const router = express.Router();
+router.get('/splitting-prompts', requireAuth, listSplittingPromptsController);
+router.post('/splitting-prompts', requireAuth, createSplittingPromptController);
+router.patch('/splitting-prompts/:promptId', requireAuth, updateSplittingPromptController);
+router.delete('/splitting-prompts/:promptId', requireAuth, deleteSplittingPromptController);
 
-router.use(requireAuth);
+router.get('/categorisation-prompts', requireAuth, listCategorisationPromptsController);
+router.post('/categorisation-prompts', requireAuth, createCategorisationPromptController);
+router.patch('/categorisation-prompts/:promptId', requireAuth, updateCategorisationPromptController);
+router.delete('/categorisation-prompts/:promptId', requireAuth, deleteCategorisationPromptController);
 
-router.get('/splitting-prompts', listSplittingPromptsController);
-router.post('/splitting-prompts', createSplittingPromptController);
-router.patch('/splitting-prompts/:promptId', updateSplittingPromptController);
-router.delete('/splitting-prompts/:promptId', deleteSplittingPromptController);
+router.get('/document-folders', requireAuth, listDocumentFoldersController);
+router.post('/document-folders', requireAuth, createDocumentFolderController);
+router.patch('/document-folders/:folderId', requireAuth, updateDocumentFolderController);
+router.delete('/document-folders/:folderId', requireAuth, deleteDocumentFolderController);
+router.post(
+  '/document-folders/:folderId/held-documents',
+  requireAuth,
+  holdDocumentInFolderController
+);
+router.post('/document-folders/:folderId/send-out', requireAuth, sendOutFromFolderController);
 
-router.get('/categorisation-prompts', listCategorisationPromptsController);
-router.post('/categorisation-prompts', createCategorisationPromptController);
-router.patch('/categorisation-prompts/:promptId', updateCategorisationPromptController);
-router.delete('/categorisation-prompts/:promptId', deleteCategorisationPromptController);
-
-router.get('/document-folders', listDocumentFoldersController);
-router.post('/document-folders', createDocumentFolderController);
-router.patch('/document-folders/:folderId', updateDocumentFolderController);
-router.delete('/document-folders/:folderId', deleteDocumentFolderController);
-router.post('/document-folders/:folderId/held-documents', holdDocumentInFolderController);
-router.post('/document-folders/:folderId/send-out', sendOutFromFolderController);
-
-router.get('/extractors', listExtractorsController);
-router.post('/extractors', createExtractorController);
-router.patch('/extractors/:extractorId', updateExtractorController);
-router.delete('/extractors/:extractorId', deleteExtractorController);
-router.post('/extractors/:extractorId/feedbacks', addExtractorFeedbackController);
-router.post('/extractors/:extractorId/held-documents', holdDocumentInExtractorController);
-router.post('/extractors/:extractorId/send-out', sendOutFromExtractorController);
+router.get('/extractors', requireAuth, listExtractorsController);
+router.post('/extractors', requireAuth, createExtractorController);
+router.patch('/extractors/:extractorId', requireAuth, updateExtractorController);
+router.delete('/extractors/:extractorId', requireAuth, deleteExtractorController);
+router.post('/extractors/:extractorId/feedbacks', requireAuth, addExtractorFeedbackController);
+router.post(
+  '/extractors/:extractorId/held-documents',
+  requireAuth,
+  holdDocumentInExtractorController
+);
+router.post('/extractors/:extractorId/send-out', requireAuth, sendOutFromExtractorController);
 
 module.exports = router;

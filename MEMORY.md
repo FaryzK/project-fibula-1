@@ -4,7 +4,7 @@ Project execution memory for Project Fibula.
 
 ## Current Snapshot
 - Date initialized: 2026-02-26
-- Status: Phase 7 webhook + HTTP nodes in progress
+- Status: Phase 8 hardening in progress
 - Owner: Faryz
 
 ## Phase Status
@@ -17,8 +17,8 @@ Project execution memory for Project Fibula.
 | Phase 4 | Core nodes: Manual Upload, IF, SWITCH (+fallback), Set Value | Completed | codex/feat/phase-4-core-nodes | 2026-02-26 | Merged to `main` via PR #8 |
 | Phase 5 | Config/service nodes: Splitting, Categorisation, Document Folder, Extractor | Completed | codex/feat/phase-5-config-service-nodes | 2026-02-26 | Merged to `main` via PR #9 |
 | Phase 6 | Data Mapper + Reconciliation | Completed | codex/feat/phase-6-data-mapper-reconciliation | 2026-02-26 | Merged to `main` via PR #10 |
-| Phase 7 | Webhook + HTTP nodes | In Progress | codex/feat/phase-7-webhook-http-nodes | 2026-02-26 | Added webhook trigger endpoint, HTTP/webhook node execution handlers, and canvas node menus/configuration |
-| Phase 8 | Hardening: tests, error handling, deployment readiness | Not Started | - | 2026-02-26 | |
+| Phase 7 | Webhook + HTTP nodes | Completed | codex/feat/phase-7-webhook-http-nodes | 2026-02-26 | Merged to `main` via PR #12 |
+| Phase 8 | Hardening: tests, error handling, deployment readiness | In Progress | codex/feat/phase-8-hardening | 2026-02-26 | Added readiness endpoint, JSON/error middleware hardening, webhook mode validation, and extra backend test coverage |
 
 ## Environment Variables (Track Additions)
 | Variable | Service | Required | Added In Phase | Documented in `.env.example` |
@@ -56,6 +56,7 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Added data mapper/reconciliation APIs and connected landing tabs for data map set/rule and matching set operations | Codex | Phase 6 |
 | 2026-02-26 | Switched local dev defaults to frontend `5174` and backend `4000` to run alongside existing Fibula project | Codex | Ops |
 | 2026-02-26 | Added webhook trigger route and HTTP/webhook node execution support with canvas config menus | Codex | Phase 7 |
+| 2026-02-26 | Added readiness checks, API JSON error handling, and stricter webhook execution mode validation | Codex | Phase 8 |
 
 ## Update Rule
 After each completed feature/phase PR:
