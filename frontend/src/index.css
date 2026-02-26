@@ -192,9 +192,9 @@ hr {
 
 .app-shell {
   width: 100%;
-  max-width: 1680px;
-  margin: 0 auto 2.8rem;
-  padding: 0 2.2rem 2.6rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 1.2rem 2.4rem;
 }
 
 .app-topbar {
@@ -249,6 +249,60 @@ hr {
   flex-wrap: wrap;
 }
 
+.user-menu {
+  position: relative;
+}
+
+.user-menu summary {
+  list-style: none;
+}
+
+.user-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.user-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.35rem 0.6rem;
+  cursor: pointer;
+  background: #ffffff;
+}
+
+.user-menu-label {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 0.88rem;
+}
+
+.user-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  min-width: 220px;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  box-shadow: var(--shadow-sm);
+  display: grid;
+  gap: 0.5rem;
+  z-index: 20;
+}
+
+.user-menu-name {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.user-menu-email {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
@@ -286,6 +340,12 @@ hr {
   font-weight: 700;
   color: var(--brand);
   background: #eef2f7;
+}
+
+.user-avatar-sm {
+  width: 30px;
+  height: 30px;
+  font-size: 0.8rem;
 }
 
 .user-name {
@@ -348,7 +408,7 @@ hr {
   display: flex;
   flex-direction: column;
   gap: 1.2rem;
-  padding: 1.6rem 2rem;
+  padding: 1.2rem 1.6rem;
 }
 
 .section-header {
@@ -758,9 +818,9 @@ hr {
 
 .canvas-shell {
   width: 100%;
-  max-width: 1760px;
-  margin: 0 auto 2rem;
-  padding: 0 2.2rem 2.6rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0 1.2rem 2.4rem;
 }
 
 .canvas-topbar {
@@ -774,6 +834,28 @@ hr {
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   box-shadow: none;
+}
+
+.canvas-header {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+}
+
+.workflow-name {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.workflow-name label {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.workflow-name input {
+  max-width: 260px;
 }
 
 .canvas-layout {
@@ -1002,7 +1084,7 @@ hr {
 @media (max-width: 900px) {
   .app-shell,
   .canvas-shell {
-    padding: 1rem 1.2rem 2rem;
+    padding: 0 1rem 2rem;
   }
 
   .app-topbar,

@@ -3,25 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useWorkflowStore } from '../stores/workflowStore';
 
 function WorkflowList() {
-  const navigate = useNavigate();
   const workflows = useWorkflowStore((state) => state.workflows);
   const isLoading = useWorkflowStore((state) => state.isLoading);
   const error = useWorkflowStore((state) => state.error);
-  const newWorkflowName = useWorkflowStore((state) => state.newWorkflowName);
-  const setNewWorkflowName = useWorkflowStore((state) => state.setNewWorkflowName);
-  const createWorkflow = useWorkflowStore((state) => state.createWorkflow);
   const renameWorkflow = useWorkflowStore((state) => state.renameWorkflow);
   const setWorkflowPublished = useWorkflowStore((state) => state.setWorkflowPublished);
   const deleteWorkflow = useWorkflowStore((state) => state.deleteWorkflow);
   const [editNamesById, setEditNamesById] = useState({});
-
-  async function handleCreateWorkflow() {
-    const { workflow } = await createWorkflow({ name: newWorkflowName });
-
-    if (workflow?.id) {
-      navigate(`/app/workflows/${workflow.id}/canvas`);
-    }
-  }
 
   function beginRename(workflow) {
     setEditNamesById((previous) => ({
@@ -56,34 +44,7 @@ function WorkflowList() {
   }
 
   return (
-    <section className="panel-grid">
-      <div className="panel">
-        <div className="panel-header">
-          <div>
-            <h2>New Workflow</h2>
-            <p>Start a new workflow and move straight to the canvas.</p>
-          </div>
-        </div>
-
-        <div className="form-grid">
-          <label htmlFor="new-workflow-name">Workflow name</label>
-          <input
-            id="new-workflow-name"
-            type="text"
-            value={newWorkflowName}
-            onChange={(event) => setNewWorkflowName(event.target.value)}
-            placeholder="e.g. Invoice approvals"
-          />
-        </div>
-
-        <div className="panel-actions">
-          <button type="button" className="btn-primary" onClick={handleCreateWorkflow}>
-            Add Workflow
-          </button>
-        </div>
-      </div>
-
-      <div className="panel">
+    <section className="panel">
         <div className="panel-header">
           <div>
             <h2>Workflows</h2>
@@ -163,13 +124,22 @@ function WorkflowList() {
             })}
           </div>
         ) : null}
-      </div>
     </section>
   );
 }
 
 export function WorkflowsPage() {
   const loadWorkflows = useWorkflowStore((state) => state.loadWorkflows);
+  const createWorkflow = useWorkflowStore((state) => state.createWorkflow);
+  const navigate = useNavigate();
+
+  async function handleCreateWorkflow() {
+    const { workflow } = await createWorkflow({ name: 'Untitled workflow' });
+
+    if (workflow?.id) {
+      navigate(`/app/workflows/${workflow.id}/canvas`);
+    }
+  }
 
   useEffect(() => {
     loadWorkflows();
@@ -182,6 +152,11 @@ export function WorkflowsPage() {
           <span className="section-eyebrow">Workflow</span>
           <h1>Workflows</h1>
           <p className="section-subtitle">Design, publish, and manage document processing workflows.</p>
+        </div>
+        <div className="section-actions">
+          <button type="button" className="btn-primary" onClick={handleCreateWorkflow}>
+            New Workflow
+          </button>
         </div>
       </header>
 
