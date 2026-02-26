@@ -491,6 +491,114 @@ hr {
   gap: 0.4rem;
 }
 
+.field-row {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 28px;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.field-row:last-child {
+  border-bottom: none;
+}
+
+.field-inputs {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 0.6rem;
+}
+
+.drag-handle {
+  border: none;
+  background: transparent;
+  cursor: grab;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.icon-btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  position: relative;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.toggle input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.toggle-track {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #e4e8ef;
+  border: 1px solid var(--line);
+  position: relative;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid var(--line-strong);
+  top: 1px;
+  left: 1px;
+  transition: transform 120ms ease, border-color 120ms ease;
+}
+
+.toggle input:checked + .toggle-track {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.toggle input:checked + .toggle-track::after {
+  transform: translateX(16px);
+  border-color: var(--brand);
+}
+
+.toggle-label {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.table-type-header {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto 28px;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0 0.6rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.6rem;
+}
+
 .data-table {
   display: grid;
   gap: 0;
@@ -1092,5 +1200,18 @@ hr {
   .canvas-topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .field-row,
+  .table-type-header {
+    grid-template-columns: 24px 1fr 28px;
+  }
+
+  .field-inputs {
+    grid-template-columns: 1fr;
+  }
+
+  .toggle {
+    grid-column: 2 / -1;
   }
 }
