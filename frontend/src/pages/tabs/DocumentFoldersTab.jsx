@@ -88,7 +88,7 @@ export function DocumentFoldersTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Document Folders</h2>
       <p>Create folders to hold documents for human review and send-out.</p>
 
@@ -109,7 +109,7 @@ export function DocumentFoldersTab() {
         </button>
       ) : null}
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoading ? <p>Loading document folders...</p> : null}
       {!isLoading && folders.length === 0 ? <p>No document folders yet.</p> : null}
 

@@ -8,9 +8,12 @@ export function ProtectedRoute({ children }) {
 
   if (isLoading) {
     return (
-      <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-        <h1>Project Fibula 1</h1>
-        <p>Loading session...</p>
+      <main className="auth-shell">
+        <section className="auth-card">
+          <span className="app-badge">SESSION</span>
+          <h1>Project Fibula 1</h1>
+          <p className="app-subtitle">Loading session...</p>
+        </section>
       </main>
     );
   }

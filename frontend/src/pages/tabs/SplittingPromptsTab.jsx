@@ -86,7 +86,7 @@ export function SplittingPromptsTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Document Splitting Prompts</h2>
       <p>Add reusable splitting instructions for document splitting nodes.</p>
 
@@ -117,7 +117,7 @@ export function SplittingPromptsTab() {
         </button>
       ) : null}
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoading ? <p>Loading splitting prompts...</p> : null}
       {!isLoading && prompts.length === 0 ? <p>No splitting prompts yet.</p> : null}
 

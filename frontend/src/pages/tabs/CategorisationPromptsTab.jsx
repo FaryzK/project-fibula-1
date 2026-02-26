@@ -113,7 +113,7 @@ export function CategorisationPromptsTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Document Categorisation Prompts</h2>
       <p>Define categorisation labels and descriptions (up to 20 labels).</p>
 
@@ -163,7 +163,7 @@ export function CategorisationPromptsTab() {
         </button>
       ) : null}
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoading ? <p>Loading categorisation prompts...</p> : null}
       {!isLoading && prompts.length === 0 ? <p>No categorisation prompts yet.</p> : null}
 

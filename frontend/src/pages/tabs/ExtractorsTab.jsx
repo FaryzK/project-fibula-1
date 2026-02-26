@@ -106,7 +106,7 @@ export function ExtractorsTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Extractors</h2>
       <p>Create extractor schema and manage held documents behavior.</p>
 
@@ -137,7 +137,7 @@ export function ExtractorsTab() {
         </button>
       ) : null}
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoading ? <p>Loading extractors...</p> : null}
       {!isLoading && extractors.length === 0 ? <p>No extractors yet.</p> : null}
 
