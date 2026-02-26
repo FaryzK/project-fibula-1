@@ -11,6 +11,9 @@ import {
 import { listExtractors } from '../../services/configServiceNodesApi';
 import { UsageList } from '../../components/UsageList';
 
+const COMPARISON_OPERATORS = ['=', '!=', '>', '>=', '<', '<='];
+const ARITHMETIC_OPERATORS = ['+', '-', '*', '/'];
+
 function createVariation(index) {
   return {
     name: `Variation ${index + 1}`,
@@ -18,6 +21,238 @@ function createVariation(index) {
     tableMatching: [],
     comparisons: []
   };
+}
+
+function withCurrentOption(options, value, labelPrefix) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return options;
+  }
+
+  const exists = options.some((option) => option.value === trimmed);
+  if (exists) {
+    return options;
+  }
+
+  return [{ value: trimmed, label: `${labelPrefix}: ${trimmed}` }, ...options];
+}
+
+function getExtractorSchema(extractorName, extractorSchemaByName) {
+  return extractorSchemaByName.get(extractorName) || { headerFields: [], tableTypes: [] };
+}
+
+function getFieldOptionsForExtractor(extractorName, extractorSchemaByName) {
+  const schema = getExtractorSchema(extractorName, extractorSchemaByName);
+
+  const headerOptions = (schema.headerFields || [])
+    .map((field) => String(field.fieldName || '').trim())
+    .filter(Boolean)
+    .map((fieldName) => ({
+      value: fieldName,
+      label: `Header • ${fieldName}`
+    }));
+
+  const tableOptions = (schema.tableTypes || []).flatMap((tableType) => {
+    const tableName = String(tableType.tableName || '').trim();
+    return (tableType.columns || [])
+      .map((column) => String(column.columnName || '').trim())
+      .filter(Boolean)
+      .map((columnName) => ({
+        value: tableName ? `${tableName}.${columnName}` : columnName,
+        label: tableName ? `Table ${tableName} • ${columnName}` : `Table • ${columnName}`
+      }));
+  });
+
+  const seen = new Set();
+  return [...headerOptions, ...tableOptions].filter((option) => {
+    if (seen.has(option.value)) {
+      return false;
+    }
+    seen.add(option.value);
+    return true;
+  });
+}
+
+function getTableOptionsForExtractor(extractorName, extractorSchemaByName) {
+  const schema = getExtractorSchema(extractorName, extractorSchemaByName);
+
+  const tableNames = (schema.tableTypes || [])
+    .map((tableType) => String(tableType.tableName || '').trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  return tableNames.filter((tableName) => {
+    if (seen.has(tableName)) {
+      return false;
+    }
+    seen.add(tableName);
+    return true;
+  });
+}
+
+function getColumnOptionsForExtractorTable(extractorName, tableName, extractorSchemaByName) {
+  const schema = getExtractorSchema(extractorName, extractorSchemaByName);
+  const normalizedTableName = String(tableName || '').trim();
+  if (!normalizedTableName) {
+    return [];
+  }
+
+  const targetTable = (schema.tableTypes || []).find(
+    (tableType) => String(tableType.tableName || '').trim() === normalizedTableName
+  );
+
+  const columns = (targetTable?.columns || [])
+    .map((column) => String(column.columnName || '').trim())
+    .filter(Boolean);
+
+  const seen = new Set();
+  return columns.filter((columnName) => {
+    if (seen.has(columnName)) {
+      return false;
+    }
+    seen.add(columnName);
+    return true;
+  });
+}
+
+function parseOperand(rawValue) {
+  const trimmed = String(rawValue || '').trim();
+  const separatorIndex = trimmed.indexOf('.');
+  if (separatorIndex <= 0 || separatorIndex >= trimmed.length - 1) {
+    return null;
+  }
+
+  return {
+    extractor: trimmed.slice(0, separatorIndex).trim(),
+    field: trimmed.slice(separatorIndex + 1).trim()
+  };
+}
+
+function parseComparisonExpression(expression) {
+  const trimmed = String(expression || '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const comparisonMatch = trimmed.match(/\s(>=|<=|!=|=|>|<)\s/);
+  if (!comparisonMatch) {
+    return null;
+  }
+
+  const operator = comparisonMatch[1];
+  const leftSide = trimmed.slice(0, comparisonMatch.index).trim();
+  const rightSide = trimmed
+    .slice(comparisonMatch.index + comparisonMatch[0].length)
+    .trim();
+
+  const arithmeticMatch = rightSide.match(/\s([+\-*/])\s/);
+
+  const rightPrimaryRaw = arithmeticMatch
+    ? rightSide.slice(0, arithmeticMatch.index).trim()
+    : rightSide;
+  const rightSecondaryRaw = arithmeticMatch
+    ? rightSide.slice(arithmeticMatch.index + arithmeticMatch[0].length).trim()
+    : '';
+
+  const leftOperand = parseOperand(leftSide);
+  const rightPrimaryOperand = parseOperand(rightPrimaryRaw);
+  const rightSecondaryOperand = rightSecondaryRaw ? parseOperand(rightSecondaryRaw) : null;
+
+  if (!leftOperand || !rightPrimaryOperand) {
+    return null;
+  }
+
+  return {
+    leftExtractor: leftOperand.extractor,
+    leftField: leftOperand.field,
+    comparisonOperator: operator,
+    rightPrimaryExtractor: rightPrimaryOperand.extractor,
+    rightPrimaryField: rightPrimaryOperand.field,
+    arithmeticOperator: arithmeticMatch?.[1] || '',
+    rightSecondaryExtractor: rightSecondaryOperand?.extractor || '',
+    rightSecondaryField: rightSecondaryOperand?.field || ''
+  };
+}
+
+function buildComparisonExpression(comparison) {
+  const leftExtractor = String(comparison.leftExtractor || '').trim();
+  const leftField = String(comparison.leftField || '').trim();
+  const rightPrimaryExtractor = String(comparison.rightPrimaryExtractor || '').trim();
+  const rightPrimaryField = String(comparison.rightPrimaryField || '').trim();
+
+  if (!leftExtractor || !leftField || !rightPrimaryExtractor || !rightPrimaryField) {
+    return '';
+  }
+
+  const comparisonOperator = String(comparison.comparisonOperator || '=').trim() || '=';
+  const rightPrimaryExpression = `${rightPrimaryExtractor}.${rightPrimaryField}`;
+
+  const arithmeticOperator = String(comparison.arithmeticOperator || '').trim();
+  const rightSecondaryExtractor = String(comparison.rightSecondaryExtractor || '').trim();
+  const rightSecondaryField = String(comparison.rightSecondaryField || '').trim();
+
+  const rightExpression =
+    arithmeticOperator && rightSecondaryExtractor && rightSecondaryField
+      ? `${rightPrimaryExpression} ${arithmeticOperator} ${rightSecondaryExtractor}.${rightSecondaryField}`
+      : rightPrimaryExpression;
+
+  return `${leftExtractor}.${leftField} ${comparisonOperator} ${rightExpression}`;
+}
+
+function hydrateComparison(comparison) {
+  const parsed = parseComparisonExpression(comparison.expression || '');
+  return {
+    ...comparison,
+    leftExtractor: comparison.leftExtractor || parsed?.leftExtractor || '',
+    leftField: comparison.leftField || parsed?.leftField || '',
+    comparisonOperator: comparison.comparisonOperator || parsed?.comparisonOperator || '=',
+    rightPrimaryExtractor: comparison.rightPrimaryExtractor || parsed?.rightPrimaryExtractor || '',
+    rightPrimaryField: comparison.rightPrimaryField || parsed?.rightPrimaryField || '',
+    arithmeticOperator: comparison.arithmeticOperator || parsed?.arithmeticOperator || '',
+    rightSecondaryExtractor: comparison.rightSecondaryExtractor || parsed?.rightSecondaryExtractor || '',
+    rightSecondaryField: comparison.rightSecondaryField || parsed?.rightSecondaryField || ''
+  };
+}
+
+function hydrateVariation(variation, index) {
+  return {
+    name: variation?.name || `Variation ${index + 1}`,
+    documentMatching: (variation?.documentMatching || []).map((item) => ({ ...item })),
+    tableMatching: (variation?.tableMatching || []).map((item) => ({
+      ...item,
+      targetExtractor: item.targetExtractor || ''
+    })),
+    comparisons: (variation?.comparisons || []).map((comparison) =>
+      hydrateComparison(comparison)
+    )
+  };
+}
+
+function sanitizeVariationsForSave(variations) {
+  return (variations || []).map((variation, index) => ({
+    name: String(variation.name || '').trim() || `Variation ${index + 1}`,
+    documentMatching: (variation.documentMatching || []).map((item) => ({
+      leftExtractor: item.leftExtractor || '',
+      leftField: item.leftField || '',
+      rightExtractor: item.rightExtractor || '',
+      rightField: item.rightField || '',
+      matchType: item.matchType || 'exact',
+      threshold: Number(item.threshold ?? 90)
+    })),
+    tableMatching: (variation.tableMatching || []).map((item) => ({
+      targetExtractor: item.targetExtractor || '',
+      anchorTable: item.anchorTable || '',
+      targetTable: item.targetTable || '',
+      anchorColumn: item.anchorColumn || '',
+      targetColumn: item.targetColumn || ''
+    })),
+    comparisons: (variation.comparisons || []).map((item) => ({
+      label: item.label || '',
+      expression: buildComparisonExpression(item) || item.expression || '',
+      toleranceType: item.toleranceType || 'absolute',
+      toleranceValue: Number(item.toleranceValue ?? 0)
+    }))
+  }));
 }
 
 export function ReconciliationDetailPage() {
@@ -44,6 +279,62 @@ export function ReconciliationDetailPage() {
     [extractors]
   );
 
+  const extractorSchemaByName = useMemo(() => {
+    const map = new Map();
+    extractors.forEach((extractor) => {
+      map.set(extractor.name, extractor.schema || { headerFields: [], tableTypes: [] });
+    });
+    return map;
+  }, [extractors]);
+
+  const expectedExtractorOptions = useMemo(() => {
+    const expectedNames = new Set([anchorExtractor, ...targetExtractors].filter(Boolean));
+    return extractorOptions.filter((option) => expectedNames.has(option.name));
+  }, [extractorOptions, anchorExtractor, targetExtractors]);
+
+  const targetExtractorOptions = useMemo(
+    () => extractorOptions.filter((option) => targetExtractors.includes(option.name)),
+    [extractorOptions, targetExtractors]
+  );
+
+  function extractorSelectionOptions(currentValue) {
+    const baseOptions = (expectedExtractorOptions.length
+      ? expectedExtractorOptions
+      : extractorOptions
+    ).map((option) => ({
+      value: option.name,
+      label: option.name
+    }));
+    return withCurrentOption(baseOptions, currentValue, 'Current extractor');
+  }
+
+  function fieldOptionsForExtractor(extractorName, currentValue) {
+    const options = getFieldOptionsForExtractor(extractorName, extractorSchemaByName);
+    return withCurrentOption(options, currentValue, 'Current field');
+  }
+
+  function tableOptionsForExtractor(extractorName, currentValue) {
+    const options = getTableOptionsForExtractor(extractorName, extractorSchemaByName).map(
+      (tableName) => ({
+        value: tableName,
+        label: tableName
+      })
+    );
+    return withCurrentOption(options, currentValue, 'Current table');
+  }
+
+  function columnOptionsForTable(extractorName, tableName, currentValue) {
+    const options = getColumnOptionsForExtractorTable(
+      extractorName,
+      tableName,
+      extractorSchemaByName
+    ).map((columnName) => ({
+      value: columnName,
+      label: columnName
+    }));
+    return withCurrentOption(options, currentValue, 'Current column');
+  }
+
   useEffect(() => {
     async function loadRule() {
       setIsLoading(true);
@@ -66,7 +357,12 @@ export function ReconciliationDetailPage() {
           setRuleName(found.name || '');
           setAnchorExtractor(found.anchorExtractor || '');
           setTargetExtractors(found.targetExtractors || []);
-          setVariations((found.variations && found.variations.length) ? found.variations : [createVariation(0)]);
+          setVariations(
+            (found.variations && found.variations.length
+              ? found.variations
+              : [createVariation(0)]
+            ).map((variation, index) => hydrateVariation(variation, index))
+          );
           const sets = await listMatchingSets(ruleId);
           setMatchingSets(sets || []);
           setNodeUsages(found.nodeUsages || []);
@@ -155,12 +451,14 @@ export function ReconciliationDetailPage() {
     setStatusText('');
 
     try {
+      const sanitizedVariations = sanitizeVariationsForSave(variations);
+
       if (isNew) {
         const rule = await createReconciliationRule({
           name: ruleName,
           anchorExtractor,
           targetExtractors,
-          variations,
+          variations: sanitizedVariations,
           nodeUsages: []
         });
         setStatusText('Reconciliation rule created');
@@ -181,7 +479,7 @@ export function ReconciliationDetailPage() {
         name: ruleName,
         anchorExtractor,
         targetExtractors,
-        variations,
+        variations: sanitizedVariations,
         nodeUsages: []
       });
       setStatusText('Reconciliation rule updated');
@@ -385,22 +683,29 @@ export function ReconciliationDetailPage() {
                       }
                     >
                       <option value="">Select extractor</option>
-                      {extractorOptions.map((option) => (
-                        <option key={option.id} value={option.name}>
-                          {option.name}
+                      {extractorSelectionOptions(item.leftExtractor).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
                         </option>
                       ))}
                     </select>
 
                     <label>Left field</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.leftField || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'documentMatching', itemIndex, 'leftField', event.target.value)
                       }
-                      placeholder="PO_Number"
-                    />
+                    >
+                      <option value="">
+                        {item.leftExtractor ? 'Select field' : 'Select extractor first'}
+                      </option>
+                      {fieldOptionsForExtractor(item.leftExtractor, item.leftField).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <label>Right extractor</label>
                     <select
@@ -410,22 +715,29 @@ export function ReconciliationDetailPage() {
                       }
                     >
                       <option value="">Select extractor</option>
-                      {extractorOptions.map((option) => (
-                        <option key={option.id} value={option.name}>
-                          {option.name}
+                      {extractorSelectionOptions(item.rightExtractor).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
                         </option>
                       ))}
                     </select>
 
                     <label>Right field</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.rightField || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'documentMatching', itemIndex, 'rightField', event.target.value)
                       }
-                      placeholder="Order_Reference"
-                    />
+                    >
+                      <option value="">
+                        {item.rightExtractor ? 'Select field' : 'Select extractor first'}
+                      </option>
+                      {fieldOptionsForExtractor(item.rightExtractor, item.rightField).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <label>Match type</label>
                     <select
@@ -475,6 +787,7 @@ export function ReconciliationDetailPage() {
                     className="btn btn-outline"
                     onClick={() =>
                       addVariationItem(variationIndex, 'tableMatching', {
+                        targetExtractor: targetExtractors[0] || '',
                         anchorTable: '',
                         targetTable: '',
                         anchorColumn: '',
@@ -490,45 +803,109 @@ export function ReconciliationDetailPage() {
 
                 {(variation.tableMatching || []).map((item, itemIndex) => (
                   <div className="form-grid" key={`table-match-${variationIndex}-${itemIndex}`}>
+                    <label>Target extractor</label>
+                    <select
+                      value={item.targetExtractor || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'tableMatching',
+                          itemIndex,
+                          'targetExtractor',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">Select target extractor</option>
+                      {withCurrentOption(
+                        targetExtractorOptions.map((option) => ({
+                          value: option.name,
+                          label: option.name
+                        })),
+                        item.targetExtractor,
+                        'Current extractor'
+                      ).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
                     <label>Anchor table type</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.anchorTable || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'tableMatching', itemIndex, 'anchorTable', event.target.value)
                       }
-                      placeholder="PO_Table"
-                    />
+                    >
+                      <option value="">
+                        {anchorExtractor ? 'Select anchor table' : 'Select anchor extractor first'}
+                      </option>
+                      {tableOptionsForExtractor(anchorExtractor, item.anchorTable).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <label>Target table type</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.targetTable || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'tableMatching', itemIndex, 'targetTable', event.target.value)
                       }
-                      placeholder="Invoice_Table"
-                    />
+                    >
+                      <option value="">
+                        {item.targetExtractor ? 'Select target table' : 'Select target extractor first'}
+                      </option>
+                      {tableOptionsForExtractor(item.targetExtractor, item.targetTable).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <label>Anchor column</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.anchorColumn || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'tableMatching', itemIndex, 'anchorColumn', event.target.value)
                       }
-                      placeholder="PartNumber"
-                    />
+                    >
+                      <option value="">
+                        {item.anchorTable ? 'Select anchor column' : 'Select anchor table first'}
+                      </option>
+                      {columnOptionsForTable(
+                        anchorExtractor,
+                        item.anchorTable,
+                        item.anchorColumn
+                      ).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <label>Target column</label>
-                    <input
-                      type="text"
+                    <select
                       value={item.targetColumn || ''}
                       onChange={(event) =>
                         updateVariationItem(variationIndex, 'tableMatching', itemIndex, 'targetColumn', event.target.value)
                       }
-                      placeholder="ItemSKU"
-                    />
+                    >
+                      <option value="">
+                        {item.targetTable ? 'Select target column' : 'Select target table first'}
+                      </option>
+                      {columnOptionsForTable(
+                        item.targetExtractor,
+                        item.targetTable,
+                        item.targetColumn
+                      ).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
 
                     <div className="panel-actions">
                       <button
@@ -554,6 +931,14 @@ export function ReconciliationDetailPage() {
                       addVariationItem(variationIndex, 'comparisons', {
                         label: '',
                         expression: '',
+                        leftExtractor: anchorExtractor || '',
+                        leftField: '',
+                        comparisonOperator: '=',
+                        rightPrimaryExtractor: targetExtractors[0] || anchorExtractor || '',
+                        rightPrimaryField: '',
+                        arithmeticOperator: '-',
+                        rightSecondaryExtractor: '',
+                        rightSecondaryField: '',
                         toleranceType: 'absolute',
                         toleranceValue: 0
                       })
@@ -577,15 +962,199 @@ export function ReconciliationDetailPage() {
                       placeholder="Invoice vs PO total"
                     />
 
-                    <label>Expression</label>
+                    <label>Left extractor</label>
+                    <select
+                      value={item.leftExtractor || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'leftExtractor',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">Select extractor</option>
+                      {extractorSelectionOptions(item.leftExtractor).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Left field</label>
+                    <select
+                      value={item.leftField || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'leftField',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        {item.leftExtractor ? 'Select field' : 'Select extractor first'}
+                      </option>
+                      {fieldOptionsForExtractor(item.leftExtractor, item.leftField).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Compare operator</label>
+                    <select
+                      value={item.comparisonOperator || '='}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'comparisonOperator',
+                          event.target.value
+                        )
+                      }
+                    >
+                      {COMPARISON_OPERATORS.map((operator) => (
+                        <option key={operator} value={operator}>
+                          {operator}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Right extractor</label>
+                    <select
+                      value={item.rightPrimaryExtractor || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'rightPrimaryExtractor',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">Select extractor</option>
+                      {extractorSelectionOptions(item.rightPrimaryExtractor).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Right field</label>
+                    <select
+                      value={item.rightPrimaryField || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'rightPrimaryField',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        {item.rightPrimaryExtractor ? 'Select field' : 'Select extractor first'}
+                      </option>
+                      {fieldOptionsForExtractor(
+                        item.rightPrimaryExtractor,
+                        item.rightPrimaryField
+                      ).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Math operator (optional)</label>
+                    <select
+                      value={item.arithmeticOperator || ''}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'arithmeticOperator',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">No arithmetic</option>
+                      {ARITHMETIC_OPERATORS.map((operator) => (
+                        <option key={operator} value={operator}>
+                          {operator}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Secondary extractor</label>
+                    <select
+                      value={item.rightSecondaryExtractor || ''}
+                      disabled={!item.arithmeticOperator}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'rightSecondaryExtractor',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        {item.arithmeticOperator ? 'Select extractor' : 'Enable math operator first'}
+                      </option>
+                      {extractorSelectionOptions(item.rightSecondaryExtractor).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Secondary field</label>
+                    <select
+                      value={item.rightSecondaryField || ''}
+                      disabled={!item.arithmeticOperator || !item.rightSecondaryExtractor}
+                      onChange={(event) =>
+                        updateVariationItem(
+                          variationIndex,
+                          'comparisons',
+                          itemIndex,
+                          'rightSecondaryField',
+                          event.target.value
+                        )
+                      }
+                    >
+                      <option value="">
+                        {item.rightSecondaryExtractor ? 'Select field' : 'Select secondary extractor first'}
+                      </option>
+                      {fieldOptionsForExtractor(
+                        item.rightSecondaryExtractor,
+                        item.rightSecondaryField
+                      ).map((option) => (
+                        <option key={`${option.value}-${option.label}`} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+
+                    <label>Generated expression</label>
                     <input
                       type="text"
-                      value={item.expression || ''}
-                      onChange={(event) =>
-                        updateVariationItem(variationIndex, 'comparisons', itemIndex, 'expression', event.target.value)
-                      }
-                      placeholder="Invoice.Total - Credit.Total = PO.Total"
+                      value={buildComparisonExpression(item) || item.expression || ''}
+                      placeholder="PO.Amount = Invoice.Amount - CreditNote.Amount"
+                      readOnly
                     />
+                    <p className="muted-text">
+                      Use dropdowns to build formulas without typing paths manually.
+                    </p>
 
                     <label>Tolerance type</label>
                     <select
