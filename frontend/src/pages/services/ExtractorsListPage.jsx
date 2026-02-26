@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteExtractor, listExtractors } from '../../services/configServiceNodesApi';
+import { listExtractors } from '../../services/configServiceNodesApi';
 
 export function ExtractorsListPage() {
   const [extractors, setExtractors] = useState([]);
@@ -25,17 +25,6 @@ export function ExtractorsListPage() {
     loadExtractors();
   }, []);
 
-  async function handleDelete(extractorId) {
-    setErrorText('');
-
-    try {
-      await deleteExtractor(extractorId);
-      await loadExtractors();
-    } catch (error) {
-      setErrorText(error?.response?.data?.error || 'Failed to delete extractor');
-    }
-  }
-
   return (
     <div className="panel-stack">
       <header className="section-header">
@@ -59,15 +48,8 @@ export function ExtractorsListPage() {
         <div className="card-grid">
           {extractors.map((extractor) => (
             <div className="card-item" key={extractor.id}>
-              <div className="card-title">{extractor.name}</div>
-              <div className="card-meta">
-                Held documents: {extractor.heldDocumentCount || extractor.heldDocuments?.length || 0}
-              </div>
-              <div className="card-meta">
-                Feedbacks: {extractor.feedbackCount || extractor.feedbacks?.length || 0}
-              </div>
-              <div className="card-meta">Used by nodes: {extractor.nodeUsages?.length || 0}</div>
-              <div className="panel-actions">
+              <div className="card-header">
+                <div className="card-title">{extractor.name}</div>
                 <Link
                   className="icon-btn-neutral"
                   to={`/app/services/extractors/${extractor.id}`}
@@ -75,10 +57,8 @@ export function ExtractorsListPage() {
                 >
                   ✎
                 </Link>
-                <button type="button" className="btn-danger" onClick={() => handleDelete(extractor.id)}>
-                  Delete
-                </button>
               </div>
+              <div className="card-meta">Edit schema, training feedback, and held documents.</div>
             </div>
           ))}
         </div>

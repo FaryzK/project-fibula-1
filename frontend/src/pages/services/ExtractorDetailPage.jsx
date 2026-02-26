@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   addExtractorFeedback,
   createExtractor,
+  deleteExtractor,
   deleteExtractorFeedback,
   listExtractors,
   sendOutFromExtractor,
@@ -38,6 +39,7 @@ export function ExtractorDetailPage() {
   const [errorText, setErrorText] = useState('');
   const [statusText, setStatusText] = useState('');
   const [activeTab, setActiveTab] = useState('schema');
+  const [isDeleting, setIsDeleting] = useState(false);
   const [feedbacks, setFeedbacks] = useState([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState('');
   const [feedbackTargetType, setFeedbackTargetType] = useState('header');
@@ -358,6 +360,30 @@ export function ExtractorDetailPage() {
       setErrorText(error?.response?.data?.error || 'Failed to save extractor');
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function handleDeleteExtractor() {
+    if (!extractorId) {
+      return;
+    }
+
+    const confirmed = window.confirm('Delete this extractor? This action cannot be undone.');
+    if (!confirmed) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorText('');
+    setStatusText('');
+
+    try {
+      await deleteExtractor(extractorId);
+      navigate('/app/services/extractors');
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to delete extractor');
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -947,15 +973,35 @@ export function ExtractorDetailPage() {
           ) : null}
 
           {!isNew && activeTab === 'schema' ? (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Workflow Usage</h2>
-                  <p>Jump to the nodes using this extractor.</p>
+            <div className="panel-stack">
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Workflow Usage</h2>
+                    <p>Jump to the nodes using this extractor.</p>
+                  </div>
                 </div>
-              </div>
-              <UsageList usages={extractorMeta?.nodeUsages || []} />
-            </section>
+                <UsageList usages={extractorMeta?.nodeUsages || []} />
+              </section>
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Delete Extractor</h2>
+                    <p>Remove this extractor and its stored feedback. This cannot be undone.</p>
+                  </div>
+                </div>
+                <div className="panel-actions">
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={handleDeleteExtractor}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete Extractor'}
+                  </button>
+                </div>
+              </section>
+            </div>
           ) : null}
         </>
       ) : null}
