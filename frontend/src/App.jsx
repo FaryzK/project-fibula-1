@@ -1,46 +1,56 @@
-import React from 'react';
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoginPage } from './pages/LoginPage';
+import { AppHomePage } from './pages/AppHomePage';
+import { SettingsPage } from './pages/SettingsPage';
 import { useAuthStore } from './stores/authStore';
 
-export function App() {
+export function AppRoutes() {
   const user = useAuthStore((state) => state.user);
-  const isLoading = useAuthStore((state) => state.isLoading);
   const hydrateSession = useAuthStore((state) => state.hydrateSession);
-  const signInWithGoogle = useAuthStore((state) => state.signInWithGoogle);
-  const signOut = useAuthStore((state) => state.signOut);
+  const fetchProfile = useAuthStore((state) => state.fetchProfile);
 
   useEffect(() => {
     hydrateSession();
   }, [hydrateSession]);
 
-  if (isLoading) {
-    return (
-      <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-        <h1>Project Fibula 1</h1>
-        <p>Loading session...</p>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
 
-  if (!user) {
-    return (
-      <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-        <h1>Project Fibula 1</h1>
-        <p>Sign in to access your workflows and document services.</p>
-        <button type="button" onClick={signInWithGoogle}>
-          Sign in with Google
-        </button>
-      </main>
-    );
-  }
+    fetchProfile();
+  }, [user, fetchProfile]);
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-      <h1>Project Fibula 1</h1>
-      <p>Signed in as {user.email || 'unknown user'}.</p>
-      <button type="button" onClick={signOut}>
-        Logout
-      </button>
-    </main>
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/app"
+        element={
+          <ProtectedRoute>
+            <AppHomePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/app/settings"
+        element={
+          <ProtectedRoute>
+            <SettingsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route path="*" element={<Navigate to={user ? '/app' : '/login'} replace />} />
+    </Routes>
+  );
+}
+
+export function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   );
 }

@@ -11,7 +11,7 @@ Project execution memory for Project Fibula.
 | Phase | Scope | Status | Branch | Last Updated | Notes |
 |---|---|---|---|---|---|
 | Phase 0 | Monorepo scaffold, tooling, env baseline, test setup | Completed | codex/feat/phase-0-scaffold | 2026-02-26 | Scaffold committed and pushed to GitHub; frontend/backend tests passing |
-| Phase 1 | Auth (Supabase Google OAuth), protected routes, user profile basics | In Progress | codex/feat/phase-1-auth | 2026-02-26 | Backend JWT auth middleware + /api/auth/me route implemented; frontend auth store/client wired |
+| Phase 1 | Auth (Supabase Google OAuth), protected routes, user profile basics | In Progress | codex/feat/phase-1-auth | 2026-02-26 | Added backend `/api/users/me` GET/PATCH, frontend protected `/app` routes, login screen, and settings page wiring |
 | Phase 2 | Landing page shell + workflow CRUD | Not Started | - | 2026-02-26 | |
 | Phase 3 | Workflow canvas foundation (React Flow interactions) | Not Started | - | 2026-02-26 | |
 | Phase 4 | Core nodes: Manual Upload, IF, SWITCH (+fallback), Set Value | Not Started | - | 2026-02-26 | |
@@ -48,6 +48,7 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Installed frontend/backend dependencies and verified both unit test suites pass | Codex | Phase 0 |
 | 2026-02-26 | Initialized local git repo, created `codex/feat/phase-0-scaffold`, committed baseline, and pushed to origin | Codex | Phase 0 |
 | 2026-02-26 | Added backend auth middleware and protected `/api/auth/me`, plus frontend Supabase auth foundation | Codex | Phase 1 |
+| 2026-02-26 | Added user profile API (`/api/users/me`) and frontend route-based auth shell with protected pages | Codex | Phase 1 |
 
 ## Update Rule
 After each completed feature/phase PR:
