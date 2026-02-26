@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createSplittingPrompt,
+  deleteSplittingPrompt,
   listSplittingPrompts,
   updateSplittingPrompt
 } from '../../services/configServiceNodesApi';
@@ -17,6 +18,7 @@ export function SplittingPromptDetailPage() {
   const [nodeUsages, setNodeUsages] = useState([]);
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [statusText, setStatusText] = useState('');
 
@@ -78,18 +80,40 @@ export function SplittingPromptDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (isNew) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorText('');
+    setStatusText('');
+
+    try {
+      await deleteSplittingPrompt(promptId);
+      navigate('/app/services/document-splitting');
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to delete prompt');
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="panel-stack">
       <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Service Setup</span>
-          <h1>{isNew ? 'New Splitting Prompt' : 'Splitting Prompt'}</h1>
-          <p className="section-subtitle">Define instructions used to split documents.</p>
+        <div className="section-title-row">
+          <Link
+            className="icon-btn-neutral icon-btn-lg"
+            to="/app/services/document-splitting"
+            aria-label="Back to splitting prompts"
+          >
+            ←
+          </Link>
+          <div>
+            <h1>{name.trim() || (isNew ? 'New Splitting Prompt' : 'Splitting Prompt')}</h1>
+          </div>
         </div>
         <div className="section-actions">
-          <Link className="btn btn-ghost" to="/app/services/document-splitting">
-            Back to Prompts
-          </Link>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Prompt'}
           </button>
@@ -126,6 +150,14 @@ export function SplittingPromptDetailPage() {
                 onChange={(event) => setInstructions(event.target.value)}
               />
             </div>
+
+            {!isNew ? (
+              <div className="panel-actions align-right">
+                <button type="button" className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? 'Deleting...' : 'Delete Prompt'}
+                </button>
+              </div>
+            ) : null}
           </section>
 
           {!isNew ? (
