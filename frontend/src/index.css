@@ -722,6 +722,26 @@ hr {
   margin-top: 0.8rem;
 }
 
+.service-list {
+  display: grid;
+  margin-top: 0.6rem;
+  border-top: 1px solid var(--line);
+}
+
+.service-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  padding: 0.7rem 0.15rem;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+}
+
+.service-row:hover {
+  background: #f8fafc;
+}
+
 .card-item {
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);

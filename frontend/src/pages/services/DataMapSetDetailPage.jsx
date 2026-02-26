@@ -181,14 +181,15 @@ export function DataMapSetDetailPage() {
 
     try {
       if (isNew) {
-        const dataMapSet = await createDataMapSet({ name, headers, records });
+        await createDataMapSet({ name, headers, records });
         setStatusText('Data map set created');
-        navigate(`/app/services/data-mapper/sets/${dataMapSet.id}`);
+        navigate('/app/services/data-mapper');
         return;
       }
 
       await updateDataMapSet(setId, { name, headers, records });
       setStatusText('Data map set updated');
+      navigate('/app/services/data-mapper');
     } catch (error) {
       setErrorText(error?.response?.data?.error || 'Failed to save data map set');
     } finally {
@@ -199,15 +200,15 @@ export function DataMapSetDetailPage() {
   return (
     <div className="panel-stack">
       <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Service Setup</span>
-          <h1>{isNew ? 'New Data Map Set' : 'Data Map Set'}</h1>
-          <p className="section-subtitle">Upload or curate lookup tables used for enrichment.</p>
+        <div className="section-title-row">
+          <Link className="icon-btn-neutral icon-btn-lg" to="/app/services/data-mapper" aria-label="Back to data mapper">
+            ←
+          </Link>
+          <div>
+            <h1>{name.trim() || (isNew ? 'New Data Map Set' : 'Data Map Set')}</h1>
+          </div>
         </div>
         <div className="section-actions">
-          <Link className="btn btn-ghost" to="/app/services/data-mapper">
-            Back to Data Mapper
-          </Link>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Data Map Set'}
           </button>
