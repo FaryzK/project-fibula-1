@@ -1,5 +1,5 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   addEdge,
   Background,
@@ -25,6 +25,8 @@ import {
   findRecenterTarget,
   getNextAvailablePosition
 } from './workflowCanvasUtils';
+import { listDocumentFolders, listExtractors } from '../services/configServiceNodesApi';
+import { listReconciliationRules } from '../services/dataMapperReconciliationApi';
 
 const NODE_LIBRARY = [
   { key: 'manual_upload', label: 'Manual Upload', icon: 'U' },
@@ -81,6 +83,8 @@ function buildWebhookConfig(workflowId, nodeId) {
 }
 
 function WorkflowCanvasContent({ workflowId }) {
+  const location = useLocation();
+  const navigate = useNavigate();
   const reactFlow = useReactFlow();
   const canvasWrapperRef = useRef(null);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -101,6 +105,10 @@ function WorkflowCanvasContent({ workflowId }) {
     )
   );
   const [previewResult, setPreviewResult] = useState('');
+  const [extractors, setExtractors] = useState([]);
+  const [documentFolders, setDocumentFolders] = useState([]);
+  const [reconciliationRules, setReconciliationRules] = useState([]);
+  const [serviceError, setServiceError] = useState('');
 
   const filteredTemplates = useMemo(() => {
     return filterNodeTemplates(NODE_LIBRARY, nodeSearchQuery);
@@ -109,6 +117,106 @@ function WorkflowCanvasContent({ workflowId }) {
   const selectedNode = useMemo(() => {
     return nodes.find((node) => node.id === selectedNodeId) || null;
   }, [nodes, selectedNodeId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadServices() {
+      try {
+        const [extractorList, folderList, reconciliationList] = await Promise.all([
+          listExtractors(),
+          listDocumentFolders(),
+          listReconciliationRules()
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setExtractors(extractorList);
+        setDocumentFolders(folderList);
+        setReconciliationRules(reconciliationList);
+        setServiceError('');
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+        setServiceError(error?.response?.data?.error || 'Failed to load service configs');
+      }
+    }
+
+    loadServices();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!location.search) {
+      return;
+    }
+
+    const params = new URLSearchParams(location.search);
+    const nodeId = params.get('nodeId');
+    const assignExtractorId = params.get('assignExtractorId');
+    const assignFolderId = params.get('assignFolderId');
+    const assignReconciliationId = params.get('assignReconciliationId');
+
+    if (!nodeId) {
+      return;
+    }
+
+    if (!assignExtractorId && !assignFolderId && !assignReconciliationId) {
+      return;
+    }
+
+    setNodes((currentNodes) =>
+      currentNodes.map((node) => {
+        if (node.id !== nodeId) {
+          return node;
+        }
+
+        const nextConfig = { ...(node.data.config || {}) };
+
+        if (assignExtractorId) {
+          const selected = extractors.find((item) => item.id === assignExtractorId);
+          nextConfig.extractorId = assignExtractorId;
+          nextConfig.extractorName = selected?.name || '';
+        }
+
+        if (assignFolderId) {
+          const selected = documentFolders.find((item) => item.id === assignFolderId);
+          nextConfig.folderId = assignFolderId;
+          nextConfig.folderName = selected?.name || '';
+        }
+
+        if (assignReconciliationId) {
+          const selected = reconciliationRules.find((item) => item.id === assignReconciliationId);
+          nextConfig.reconciliationRuleId = assignReconciliationId;
+          nextConfig.reconciliationRuleName = selected?.name || '';
+        }
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config: nextConfig
+          }
+        };
+      })
+    );
+
+    navigate(location.pathname, { replace: true });
+  }, [
+    location.search,
+    location.pathname,
+    navigate,
+    setNodes,
+    extractors,
+    documentFolders,
+    reconciliationRules
+  ]);
 
   function getViewportCenterPosition() {
     const wrapperRect = canvasWrapperRef.current?.getBoundingClientRect();
@@ -728,6 +836,13 @@ function WorkflowCanvasContent({ workflowId }) {
   }
 
   function renderNodeMenu(node) {
+    const returnTo = encodeURIComponent(location.pathname);
+    const serviceLinks = {
+      extractor: { to: '/app/services/extractors', label: 'Go to Extractors' },
+      document_folder: { to: '/app/services/document-folders', label: 'Go to Document Folders' },
+      reconciliation: { to: '/app/services/reconciliation', label: 'Go to Reconciliation' }
+    };
+
     if (node.data.nodeTypeKey === 'manual_upload') {
       return (
         <>
@@ -764,6 +879,167 @@ function WorkflowCanvasContent({ workflowId }) {
       return renderHttpEditor(node);
     }
 
+    if (node.data.nodeTypeKey === 'extractor') {
+      const config = node.data.config || {};
+
+      return (
+        <>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Input:</strong> {BASE_MENU_TEXT.input}
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Output:</strong> {BASE_MENU_TEXT.output}
+          </p>
+          <label htmlFor={`extractor-select-${node.id}`}>Extractor</label>
+          <select
+            id={`extractor-select-${node.id}`}
+            value={config.extractorId || ''}
+            onChange={(event) => {
+              const nextId = event.target.value;
+              const selected = extractors.find((item) => item.id === nextId);
+              updateNodeConfig(node.id, (current) => ({
+                ...current,
+                extractorId: nextId,
+                extractorName: selected?.name || ''
+              }));
+            }}
+          >
+            <option value="">Select extractor</option>
+            {extractors.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          {serviceError ? <p className="status-error">{serviceError}</p> : null}
+          <div className="panel-actions">
+            <Link className="btn btn-outline" to="/app/services/extractors">
+              Manage Extractors
+            </Link>
+            <Link
+              className="btn btn-ghost"
+              to={`/app/services/extractors/new?returnTo=${returnTo}&nodeId=${node.id}`}
+            >
+              Create New Extractor
+            </Link>
+          </div>
+        </>
+      );
+    }
+
+    if (node.data.nodeTypeKey === 'document_folder') {
+      const config = node.data.config || {};
+
+      return (
+        <>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Input:</strong> {BASE_MENU_TEXT.input}
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Output:</strong> {BASE_MENU_TEXT.output}
+          </p>
+          <label htmlFor={`folder-select-${node.id}`}>Document Folder</label>
+          <select
+            id={`folder-select-${node.id}`}
+            value={config.folderId || ''}
+            onChange={(event) => {
+              const nextId = event.target.value;
+              const selected = documentFolders.find((item) => item.id === nextId);
+              updateNodeConfig(node.id, (current) => ({
+                ...current,
+                folderId: nextId,
+                folderName: selected?.name || ''
+              }));
+            }}
+          >
+            <option value="">Select folder</option>
+            {documentFolders.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          {serviceError ? <p className="status-error">{serviceError}</p> : null}
+          <div className="panel-actions">
+            <Link className="btn btn-outline" to="/app/services/document-folders">
+              Manage Folders
+            </Link>
+            <Link
+              className="btn btn-ghost"
+              to={`/app/services/document-folders/new?returnTo=${returnTo}&nodeId=${node.id}`}
+            >
+              Create New Folder
+            </Link>
+          </div>
+        </>
+      );
+    }
+
+    if (node.data.nodeTypeKey === 'reconciliation') {
+      const config = node.data.config || {};
+
+      return (
+        <>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Input:</strong> {BASE_MENU_TEXT.input}
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Output:</strong> {BASE_MENU_TEXT.output}
+          </p>
+          <label htmlFor={`reconciliation-select-${node.id}`}>Reconciliation Rule</label>
+          <select
+            id={`reconciliation-select-${node.id}`}
+            value={config.reconciliationRuleId || ''}
+            onChange={(event) => {
+              const nextId = event.target.value;
+              const selected = reconciliationRules.find((item) => item.id === nextId);
+              updateNodeConfig(node.id, (current) => ({
+                ...current,
+                reconciliationRuleId: nextId,
+                reconciliationRuleName: selected?.name || ''
+              }));
+            }}
+          >
+            <option value="">Select rule</option>
+            {reconciliationRules.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name}
+              </option>
+            ))}
+          </select>
+          {serviceError ? <p className="status-error">{serviceError}</p> : null}
+          <div className="panel-actions">
+            <Link className="btn btn-outline" to="/app/services/reconciliation">
+              Manage Reconciliation
+            </Link>
+            <Link
+              className="btn btn-ghost"
+              to={`/app/services/reconciliation/new?returnTo=${returnTo}&nodeId=${node.id}`}
+            >
+              Create New Rule
+            </Link>
+          </div>
+        </>
+      );
+    }
+
+    if (serviceLinks[node.data.nodeTypeKey]) {
+      const serviceLink = serviceLinks[node.data.nodeTypeKey];
+      return (
+        <>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Input:</strong> {BASE_MENU_TEXT.input}
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Output:</strong> {BASE_MENU_TEXT.output}
+          </p>
+          <Link className="btn btn-outline" to={serviceLink.to}>
+            {serviceLink.label}
+          </Link>
+        </>
+      );
+    }
+
     return (
       <>
         <p style={{ marginBottom: 4 }}>
@@ -778,28 +1054,33 @@ function WorkflowCanvasContent({ workflowId }) {
 
   return (
     <main className="canvas-shell">
-      <div className="canvas-header">
-        <div>
-          <span className="app-badge">CANVAS</span>
-          <h1 style={{ marginTop: 6 }}>Workflow Canvas</h1>
-          <p className="app-subtitle">Workflow ID: {workflowId}</p>
+      <header className="canvas-topbar">
+        <div className="brand-block">
+          <div className="brand-mark">F</div>
+          <div>
+            <div className="brand-title">Workflow Canvas</div>
+            <div className="brand-subtitle">Workflow ID: {workflowId}</div>
+          </div>
         </div>
-        <div className="canvas-header-actions">
-          <button type="button" onClick={recenterView}>
+        <div className="topbar-actions">
+          <button type="button" className="btn btn-outline" onClick={recenterView}>
             Re-center
           </button>
           <button
             type="button"
+            className="btn-primary"
             onClick={() => {
               setBranchSourceNodeId(null);
               setIsNodeLibraryOpen((current) => !current);
             }}
           >
-            + Add Node
+            Add Node
           </button>
-          <Link to="/app">Back to Workflow Tab</Link>
+          <Link className="btn btn-ghost" to="/app/workflows">
+            Back to Workspace
+          </Link>
         </div>
-      </div>
+      </header>
 
       <div className="canvas-layout">
         <div ref={canvasWrapperRef} className="canvas-stage">
@@ -826,34 +1107,29 @@ function WorkflowCanvasContent({ workflowId }) {
 
         {isNodeLibraryOpen ? (
           <aside className="canvas-aside">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="panel-header">
               <strong>{branchSourceNodeId ? 'Add Connected Node' : 'Node Library'}</strong>
-              <button type="button" onClick={closeNodeLibrary}>
+              <button type="button" className="btn btn-ghost" onClick={closeNodeLibrary}>
                 Close
               </button>
             </div>
-            <label htmlFor="canvas-node-search">Search nodes</label>
-            <input
-              id="canvas-node-search"
-              type="text"
-              value={nodeSearchQuery}
-              onChange={(event) => setNodeSearchQuery(event.target.value)}
-              placeholder="Type node name"
-              style={{ width: '100%', marginTop: 6, marginBottom: 8 }}
-            />
-            <div style={{ display: 'grid', gap: 6 }}>
+            <div className="form-grid">
+              <label htmlFor="canvas-node-search">Search nodes</label>
+              <input
+                id="canvas-node-search"
+                type="text"
+                value={nodeSearchQuery}
+                onChange={(event) => setNodeSearchQuery(event.target.value)}
+                placeholder="Type node name"
+              />
+            </div>
+            <div className="node-library-list">
               {filteredTemplates.map((template) => (
                 <button
                   key={template.key}
                   type="button"
+                  className="node-library-button"
                   onClick={() => addNodeFromTemplate(template)}
-                  style={{
-                    textAlign: 'left',
-                    borderRadius: 8,
-                    border: '1px solid #cbd5e1',
-                    padding: '6px 8px',
-                    background: '#f8fafc'
-                  }}
                 >
                   {template.icon} {template.label}
                 </button>
@@ -864,17 +1140,14 @@ function WorkflowCanvasContent({ workflowId }) {
         ) : null}
       </div>
 
-      <section
-        className="panel"
-        style={{ marginTop: 10 }}
-      >
+      <section className="panel canvas-node-menu">
         <strong>Node Menu</strong>
         {selectedNode ? (
           <div>
-            <p style={{ marginBottom: 4 }}>
+            <p>
               <strong>Name:</strong> {selectedNode.data.label}
             </p>
-            <button type="button" onClick={() => renameNode(selectedNode.id)}>
+            <button type="button" className="btn btn-outline" onClick={() => renameNode(selectedNode.id)}>
               Rename Node
             </button>
             {renderNodeMenu(selectedNode)}
@@ -885,9 +1158,8 @@ function WorkflowCanvasContent({ workflowId }) {
               rows={6}
               value={sampleMetadataText}
               onChange={(event) => setSampleMetadataText(event.target.value)}
-              style={{ width: '100%' }}
             />
-            <button type="button" onClick={runPreview}>
+            <button type="button" className="btn-primary" onClick={runPreview}>
               Run Preview
             </button>
             {previewResult ? <p>{previewResult}</p> : null}

@@ -113,75 +113,103 @@ export function CategorisationPromptsTab() {
   }
 
   return (
-    <section className="panel">
-      <h2>Document Categorisation Prompts</h2>
-      <p>Define categorisation labels and descriptions (up to 20 labels).</p>
+    <section className="panel-grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Document Categorisation Prompts</h2>
+            <p>Define categorisation labels and descriptions (up to 20 labels).</p>
+          </div>
+        </div>
 
-      <label htmlFor="categorisation-prompt-name">Prompt name</label>
-      <br />
-      <input
-        id="categorisation-prompt-name"
-        type="text"
-        value={promptName}
-        onChange={(event) => setPromptName(event.target.value)}
-      />
+        <div className="form-grid">
+          <label htmlFor="categorisation-prompt-name">Prompt name</label>
+          <input
+            id="categorisation-prompt-name"
+            type="text"
+            value={promptName}
+            onChange={(event) => setPromptName(event.target.value)}
+          />
 
-      <p>Labels ({labels.length}/20)</p>
-      <input
-        type="text"
-        placeholder="Label"
-        value={labelName}
-        onChange={(event) => setLabelName(event.target.value)}
-      />
-      <input
-        type="text"
-        placeholder="Label description"
-        value={labelDescription}
-        onChange={(event) => setLabelDescription(event.target.value)}
-      />
-      <button type="button" onClick={addLabel}>
-        Add Label
-      </button>
+          <label>Labels ({labels.length}/20)</label>
+          <input
+            type="text"
+            placeholder="Label"
+            value={labelName}
+            onChange={(event) => setLabelName(event.target.value)}
+          />
+          <input
+            type="text"
+            placeholder="Label description"
+            value={labelDescription}
+            onChange={(event) => setLabelDescription(event.target.value)}
+          />
+          <button type="button" className="btn btn-outline" onClick={addLabel}>
+            Add Label
+          </button>
+        </div>
 
-      <ul>
-        {labels.map((item, index) => (
-          <li key={`${item.label}-${index}`}>
-            {item.label}: {item.description}
-            <button type="button" onClick={() => removeLabel(index)}>
-              Remove
+        {labels.length > 0 ? (
+          <div className="card-grid">
+            {labels.map((item, index) => (
+              <div className="card-item" key={`${item.label}-${index}`}>
+                <div className="card-title">{item.label}</div>
+                <div className="card-meta">{item.description || 'No description'}</div>
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-ghost" onClick={() => removeLabel(index)}>
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="panel-actions">
+          <button type="button" className="btn-primary" onClick={handleSubmit}>
+            {editingPromptId ? 'Save Categorisation Prompt' : 'Add Categorisation Prompt'}
+          </button>
+          {editingPromptId ? (
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel Edit
             </button>
-          </li>
-        ))}
-      </ul>
+          ) : null}
+        </div>
 
-      <button type="button" onClick={handleSubmit}>
-        {editingPromptId ? 'Save Categorisation Prompt' : 'Add Categorisation Prompt'}
-      </button>
-      {editingPromptId ? (
-        <button type="button" onClick={cancelEdit}>
-          Cancel Edit
-        </button>
-      ) : null}
+        {errorText ? <p className="status-error">{errorText}</p> : null}
+      </div>
 
-      {errorText ? <p className="status-error">{errorText}</p> : null}
-      {isLoading ? <p>Loading categorisation prompts...</p> : null}
-      {!isLoading && prompts.length === 0 ? <p>No categorisation prompts yet.</p> : null}
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Prompt Library</h3>
+            <p>Live categorisation prompts used by document categorisation nodes.</p>
+          </div>
+        </div>
 
-      <ul>
-        {prompts.map((prompt) => (
-          <li key={prompt.id}>
-            <strong>{prompt.name}</strong>
-            <p>Labels: {prompt.labels?.length || 0}</p>
-            <p>Used by nodes: {prompt.nodeUsages?.length || 0}</p>
-            <button type="button" onClick={() => beginEdit(prompt)}>
-              Edit
-            </button>
-            <button type="button" onClick={() => handleDelete(prompt.id)}>
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
+        {isLoading ? <p>Loading categorisation prompts...</p> : null}
+        {!isLoading && prompts.length === 0 ? <p>No categorisation prompts yet.</p> : null}
+
+        {!isLoading && prompts.length > 0 ? (
+          <div className="card-grid">
+            {prompts.map((prompt) => (
+              <div className="card-item" key={prompt.id}>
+                <div className="card-title">{prompt.name}</div>
+                <div className="card-meta">Labels: {prompt.labels?.length || 0}</div>
+                <div className="card-meta">Used by nodes: {prompt.nodeUsages?.length || 0}</div>
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => beginEdit(prompt)}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn-danger" onClick={() => handleDelete(prompt.id)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

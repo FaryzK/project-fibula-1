@@ -45,9 +45,17 @@ Project execution memory for Project Fibula.
 ## UI Polish Plan (Phase 9)
 1. Build shared visual language in `frontend/src/index.css` (tokens, typography, layout shells, panel/controls).
 2. Restyle journey-critical pages (`/login`, `/app`, `/app/settings`) while preserving existing behavior/tests.
-3. Apply consistent panel styling across landing tab services for readability and scan speed.
-4. Refine workflow canvas shell and node card styling to feel productized while preserving existing interactions.
-5. Run full frontend tests and verify production build before PR.
+3. Replace the landing layout with a topbar + sidebar navigation shell to feel enterprise-friendly.
+4. Introduce Ops dashboard as the `/app` entry point with service-first configuration flow.
+5. Split services into list-only dashboards and dedicated setup pages (Extractor first, then Data Mapper/Reconciliation).
+6. Refine workflow canvas shell and node card styling to feel productized while preserving existing interactions.
+7. Run full frontend tests and verify production build before PR.
+
+## Guided UI Plan (Phase 11)
+1. Add Ops dashboard as `/app` default and separate Workflow list at `/app/workflows`.
+2. Split services into list-only dashboards and dedicated setup pages.
+3. Add guided setup flows for Extractor, Data Mapper, and Reconciliation.
+4. Connect workflow canvas nodes to service instances with deep links back to setup.
 
 ## Change Log
 | Date | Change | By | Related Phase |
@@ -69,6 +77,9 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Phase 8 hardening branch merged to `main` | Codex | Phase 8 |
 | 2026-02-26 | Fixed OAuth redirect/session sync by adding explicit `redirectTo=/app` and auth state listener | Codex | Fix |
 | 2026-02-26 | Fixed login-page stall by keeping login route in loading state until auth hydration completes | Codex | Fix |
+| 2026-02-26 | Rebuilt UI shell with topbar + sidebar navigation, card grids, and refined canvas styling | Codex | Phase 9 |
+| 2026-02-26 | Added Ops dashboard default, service list pages, and guided extractor/data mapper/reconciliation setup flows | Codex | Phase 9 |
+| 2026-02-26 | Added canvas-to-service deep links and service instance selectors in node menus | Codex | Phase 11 |
 
 ## Update Rule
 After each completed feature/phase PR:

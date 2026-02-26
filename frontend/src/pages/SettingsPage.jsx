@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 
 export function SettingsPage() {
@@ -37,20 +36,23 @@ export function SettingsPage() {
   }
 
   return (
-    <main className="app-shell">
-      <header className="app-hero">
+    <div className="panel-stack">
+      <header className="section-header">
         <div>
-          <span className="app-badge">PROFILE</span>
+          <span className="section-eyebrow">Account</span>
           <h1>User Settings</h1>
-          <p className="app-subtitle">Manage your display profile and user preferences.</p>
-        </div>
-        <div className="app-hero-actions">
-          <Link to="/app">Back to Workflow Tab</Link>
+          <p className="section-subtitle">Manage your display profile and user preferences.</p>
         </div>
       </header>
 
-      <section className="panel" style={{ marginTop: '1rem' }}>
-        <form onSubmit={handleSubmit}>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Profile</h2>
+            <p>Update your name, avatar URL, and theme preference.</p>
+          </div>
+        </div>
+        <form onSubmit={handleSubmit} className="form-grid">
           <label htmlFor="firstName">First name</label>
           <input
             id="firstName"
@@ -84,11 +86,15 @@ export function SettingsPage() {
             <option value="dark">Dark</option>
           </select>
 
-          <button type="submit">Save Settings</button>
+          <div className="panel-actions">
+            <button type="submit" className="btn-primary">
+              Save Settings
+            </button>
+          </div>
         </form>
 
         {statusText ? <p className="status-ok">{statusText}</p> : null}
       </section>
-    </main>
+    </div>
   );
 }

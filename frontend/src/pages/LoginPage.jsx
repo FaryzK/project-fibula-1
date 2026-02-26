@@ -14,10 +14,17 @@ export function LoginPage() {
   if (isLoading) {
     return (
       <main className="auth-shell">
-        <section className="auth-card">
-          <span className="app-badge">AUTH</span>
-          <h1>Project Fibula 1</h1>
-          <p className="app-subtitle">Completing sign-in...</p>
+        <section className="auth-layout">
+          <div className="auth-hero">
+            <span className="app-badge">FIBULA-1</span>
+            <h1>Workflow-first ETL studio</h1>
+            <p className="app-subtitle">Syncing your session...</p>
+          </div>
+          <div className="auth-card">
+            <span className="app-badge">AUTH</span>
+            <h2>Completing sign-in</h2>
+            <p>Hold tight while we confirm your credentials.</p>
+          </div>
         </section>
       </main>
     );
@@ -25,15 +32,28 @@ export function LoginPage() {
 
   return (
     <main className="auth-shell">
-      <section className="auth-card">
-        <span className="app-badge">FIBULA-1</span>
-        <h1>Document Workflow Control</h1>
-        <p className="app-subtitle">
-          Sign in with Google to access workflow design, service nodes, and operations tabs.
-        </p>
-        <button type="button" onClick={signInWithGoogle}>
-          Sign in with Google
-        </button>
+      <section className="auth-layout">
+        <div className="auth-hero">
+          <span className="app-badge">FIBULA-1</span>
+          <h1>Document workflow control</h1>
+          <p>
+            Build, govern, and monitor document workflows across extraction, reconciliation, and
+            exports.
+          </p>
+          <ul className="auth-list">
+            <li>Canvas-based workflow design</li>
+            <li>Service nodes for extractors and reconciliation</li>
+            <li>Operational tabs for folders and mapping sets</li>
+          </ul>
+        </div>
+        <div className="auth-card">
+          <span className="app-badge">Secure access</span>
+          <h2>Sign in to your workspace</h2>
+          <p>Use Google authentication to continue to Project Fibula-1.</p>
+          <button type="button" className="btn-primary" onClick={signInWithGoogle}>
+            Sign in with Google
+          </button>
+        </div>
       </section>
     </main>
   );

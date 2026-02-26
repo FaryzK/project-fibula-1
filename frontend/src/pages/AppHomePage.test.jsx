@@ -111,54 +111,9 @@ describe('AppHomePage', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: /workflow tab/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /workflows/i, level: 1 })).toBeTruthy();
     expect(screen.getByRole('button', { name: /add workflow/i })).toBeTruthy();
     expect(listWorkflows).toHaveBeenCalledTimes(1);
-  });
-
-  it('switches to document folders tab', async () => {
-    listWorkflows.mockResolvedValueOnce([]);
-
-    render(
-      <MemoryRouter>
-        <AppHomePage />
-      </MemoryRouter>
-    );
-
-    const docFolderTab = await screen.findByRole('button', { name: /document folders/i });
-    fireEvent.click(docFolderTab);
-
-    expect(await screen.findByRole('heading', { name: /document folders/i })).toBeTruthy();
-  });
-
-  it('switches to reconciliation tab', async () => {
-    listWorkflows.mockResolvedValueOnce([]);
-
-    render(
-      <MemoryRouter>
-        <AppHomePage />
-      </MemoryRouter>
-    );
-
-    const reconciliationTab = await screen.findByRole('button', { name: /reconciliation/i });
-    fireEvent.click(reconciliationTab);
-
-    expect(await screen.findByRole('heading', { name: /reconciliation rules/i })).toBeTruthy();
-  });
-
-  it('switches to data mapper tab', async () => {
-    listWorkflows.mockResolvedValueOnce([]);
-
-    render(
-      <MemoryRouter>
-        <AppHomePage />
-      </MemoryRouter>
-    );
-
-    const dataMapperTab = await screen.findByRole('button', { name: /data mapper/i });
-    fireEvent.click(dataMapperTab);
-
-    expect(await screen.findByRole('heading', { name: /data mapper/i })).toBeTruthy();
   });
 
   it('supports create, publish and delete actions', async () => {
@@ -185,7 +140,7 @@ describe('AppHomePage', () => {
       </MemoryRouter>
     );
 
-    fireEvent.change(await screen.findByLabelText(/new workflow name/i), {
+    fireEvent.change(await screen.findByLabelText(/workflow name/i), {
       target: { value: 'Invoice Flow' }
     });
     fireEvent.click(screen.getByRole('button', { name: /add workflow/i }));
