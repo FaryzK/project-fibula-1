@@ -2,6 +2,7 @@ const express = require('express');
 const { requireAuth } = require('../middleware/require-auth.middleware');
 const {
   addExtractorFeedbackController,
+  deleteExtractorFeedbackController,
   createCategorisationPromptController,
   createDocumentFolderController,
   createExtractorController,
@@ -51,6 +52,11 @@ router.post('/extractors', requireAuth, createExtractorController);
 router.patch('/extractors/:extractorId', requireAuth, updateExtractorController);
 router.delete('/extractors/:extractorId', requireAuth, deleteExtractorController);
 router.post('/extractors/:extractorId/feedbacks', requireAuth, addExtractorFeedbackController);
+router.delete(
+  '/extractors/:extractorId/feedbacks/:feedbackId',
+  requireAuth,
+  deleteExtractorFeedbackController
+);
 router.post(
   '/extractors/:extractorId/held-documents',
   requireAuth,

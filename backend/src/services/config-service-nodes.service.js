@@ -367,6 +367,30 @@ function addExtractorFeedback(userId, extractorId, payload) {
   return feedback;
 }
 
+function deleteExtractorFeedback(userId, extractorId, feedbackId) {
+  const existing = extractorsById.get(extractorId);
+
+  if (!isOwnedByUser(existing, userId)) {
+    return null;
+  }
+
+  const feedbacks = existing.feedbacks || [];
+  const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
+
+  if (nextFeedbacks.length === feedbacks.length) {
+    return { success: false, reason: 'not_found' };
+  }
+
+  const updated = {
+    ...existing,
+    feedbacks: nextFeedbacks,
+    updatedAt: new Date().toISOString()
+  };
+
+  extractorsById.set(extractorId, updated);
+  return { success: true };
+}
+
 function holdDocumentInExtractor(userId, extractorId, payload) {
   const existing = extractorsById.get(extractorId);
 
@@ -431,6 +455,7 @@ function resetConfigServiceStores() {
 
 module.exports = {
   addExtractorFeedback,
+  deleteExtractorFeedback,
   createCategorisationPrompt,
   createDocumentFolder,
   createExtractor,

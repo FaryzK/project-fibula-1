@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
+  addExtractorFeedback,
   createExtractor,
+  deleteExtractorFeedback,
   listExtractors,
+  sendOutFromExtractor,
   updateExtractor
 } from '../../services/configServiceNodesApi';
 import { UsageList } from '../../components/UsageList';
@@ -33,6 +36,15 @@ export function ExtractorDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [statusText, setStatusText] = useState('');
+  const [activeTab, setActiveTab] = useState('schema');
+  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbackDocumentId, setFeedbackDocumentId] = useState('');
+  const [feedbackTargetType, setFeedbackTargetType] = useState('header');
+  const [feedbackTargetPath, setFeedbackTargetPath] = useState('');
+  const [feedbackText, setFeedbackText] = useState('');
+  const [feedbackStatus, setFeedbackStatus] = useState('');
+  const [feedbackError, setFeedbackError] = useState('');
+  const [selectedHeldDocs, setSelectedHeldDocs] = useState([]);
 
   useEffect(() => {
     if (isNew) {
@@ -56,6 +68,7 @@ export function ExtractorDetailPage() {
         setName(found.name || '');
         setSchema(found.schema || DEFAULT_SCHEMA);
         setHoldAllDocuments(Boolean(found.holdAllDocuments));
+        setFeedbacks(found.feedbacks || []);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load extractor');
       } finally {
@@ -66,9 +79,14 @@ export function ExtractorDetailPage() {
     loadExtractor();
   }, [extractorId, isNew]);
 
+  const createSteps = useMemo(
+    () => (isNew ? STEPS.filter((step) => step.key !== 'hold') : STEPS),
+    [isNew]
+  );
+
   const activeIndex = useMemo(
-    () => STEPS.findIndex((step) => step.key === activeStep),
-    [activeStep]
+    () => createSteps.findIndex((step) => step.key === activeStep),
+    [activeStep, createSteps]
   );
 
   function updateHeaderField(index, field, value) {
@@ -209,6 +227,79 @@ export function ExtractorDetailPage() {
     });
   }
 
+  async function handleAddFeedback() {
+    if (!feedbackText.trim()) {
+      setFeedbackError('Feedback text is required');
+      return;
+    }
+
+    setFeedbackError('');
+    setFeedbackStatus('');
+
+    try {
+      const feedback = await addExtractorFeedback(extractorId, {
+        documentId: feedbackDocumentId.trim() || null,
+        targetType: feedbackTargetType,
+        targetPath: feedbackTargetPath.trim(),
+        feedbackText: feedbackText.trim()
+      });
+      setFeedbacks((current) => [feedback, ...current]);
+      setFeedbackStatus('Feedback recorded');
+      setFeedbackDocumentId('');
+      setFeedbackTargetPath('');
+      setFeedbackText('');
+    } catch (error) {
+      setFeedbackError(error?.response?.data?.error || 'Failed to add feedback');
+    }
+  }
+
+  async function handleDeleteFeedback(feedbackId) {
+    setFeedbackError('');
+    setFeedbackStatus('');
+
+    try {
+      await deleteExtractorFeedback(extractorId, feedbackId);
+      setFeedbacks((current) => current.filter((item) => item.id !== feedbackId));
+      setFeedbackStatus('Feedback removed');
+    } catch (error) {
+      setFeedbackError(error?.response?.data?.error || 'Failed to delete feedback');
+    }
+  }
+
+  async function handleSendOutSelected() {
+    if (!selectedHeldDocs.length) {
+      return;
+    }
+
+    setStatusText('');
+    setErrorText('');
+
+    try {
+      await sendOutFromExtractor(extractorId, { documentIds: selectedHeldDocs });
+      setSelectedHeldDocs([]);
+      const data = await listExtractors();
+      const found = data.find((item) => item.id === extractorId);
+      if (found) {
+        setExtractorMeta(found);
+        setHoldAllDocuments(Boolean(found.holdAllDocuments));
+        setFeedbacks(found.feedbacks || []);
+        setSchema(found.schema || DEFAULT_SCHEMA);
+      }
+      setStatusText('Selected documents sent out');
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to send out documents');
+    }
+  }
+
+  function toggleHeldSelection(docId) {
+    if (!docId) {
+      return;
+    }
+    setSelectedHeldDocs((current) =>
+      current.includes(docId) ? current.filter((id) => id !== docId) : [...current, docId]
+    );
+  }
+
   function handleColumnDrop(event, tableIndex, targetIndex) {
     event.preventDefault();
     const payload = getDragPayload(event);
@@ -241,7 +332,6 @@ export function ExtractorDetailPage() {
           schema,
           holdAllDocuments
         });
-        setStatusText('Extractor created');
         const params = new URLSearchParams(location.search);
         const returnTo = params.get('returnTo');
         const returnNodeId = params.get('nodeId');
@@ -251,7 +341,7 @@ export function ExtractorDetailPage() {
           return;
         }
 
-        navigate(`/app/services/extractors/${extractor.id}`);
+        navigate('/app/services/extractors');
         return;
       }
 
@@ -261,6 +351,7 @@ export function ExtractorDetailPage() {
         holdAllDocuments
       });
       setExtractorMeta(extractor);
+      setFeedbacks(extractor.feedbacks || []);
       setStatusText('Extractor updated');
     } catch (error) {
       setErrorText(error?.response?.data?.error || 'Failed to save extractor');
@@ -270,13 +361,26 @@ export function ExtractorDetailPage() {
   }
 
   function nextStep() {
-    const nextIndex = Math.min(activeIndex + 1, STEPS.length - 1);
-    setActiveStep(STEPS[nextIndex].key);
+    if (!isNew) {
+      return;
+    }
+
+    if (activeIndex >= createSteps.length - 1) {
+      handleSave();
+      return;
+    }
+
+    const nextIndex = Math.min(activeIndex + 1, createSteps.length - 1);
+    setActiveStep(createSteps[nextIndex].key);
   }
 
   function previousStep() {
+    if (!isNew) {
+      return;
+    }
+
     const nextIndex = Math.max(activeIndex - 1, 0);
-    setActiveStep(STEPS[nextIndex].key);
+    setActiveStep(createSteps[nextIndex].key);
   }
 
   const requiredHeaderCount = (schema.headerFields || []).filter((item) => item.required).length;
@@ -292,6 +396,23 @@ export function ExtractorDetailPage() {
     }
     return parsed.toLocaleString();
   };
+  const resolveHeldReason = (heldDocument) => {
+    const explicit = heldDocument?.reason || heldDocument?.metadata?.holdReason;
+    if (explicit) {
+      return explicit;
+    }
+    const missingFields = heldDocument?.metadata?.missingFields;
+    if (Array.isArray(missingFields) && missingFields.length) {
+      return `Missing fields: ${missingFields.join(', ')}`;
+    }
+    return holdAllDocuments ? 'Held by policy' : 'Missing required fields';
+  };
+
+  useEffect(() => {
+    setSelectedHeldDocs((current) =>
+      current.filter((id) => heldDocuments.some((item) => item.document?.id === id))
+    );
+  }, [heldDocuments]);
 
   return (
     <div className="panel-stack">
@@ -308,7 +429,7 @@ export function ExtractorDetailPage() {
             Back to Extractors
           </Link>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving...' : 'Save Extractor'}
+            {isSaving ? 'Saving...' : isNew ? 'Create Extractor' : 'Save Extractor'}
           </button>
         </div>
       </header>
@@ -319,26 +440,47 @@ export function ExtractorDetailPage() {
 
       {!isLoading ? (
         <>
-          <div className="stepper">
-            {STEPS.map((step, index) => (
-              <button
-                key={step.key}
-                type="button"
-                className={`stepper-item ${activeStep === step.key ? 'active' : ''} ${
-                  index < activeIndex ? 'complete' : ''
-                }`}
-                onClick={() => setActiveStep(step.key)}
-              >
-                <span className="stepper-index">{index + 1}</span>
-                <span>
-                  <span className="stepper-title">{step.label}</span>
-                  <span className="stepper-meta">{step.description}</span>
-                </span>
-              </button>
-            ))}
-          </div>
+          {isNew ? (
+            <div className="stepper">
+              {createSteps.map((step, index) => (
+                <button
+                  key={step.key}
+                  type="button"
+                  className={`stepper-item ${activeStep === step.key ? 'active' : ''} ${
+                    index < activeIndex ? 'complete' : ''
+                  }`}
+                  onClick={() => setActiveStep(step.key)}
+                >
+                  <span className="stepper-index">{index + 1}</span>
+                  <span>
+                    <span className="stepper-title">{step.label}</span>
+                    <span className="stepper-meta">{step.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-          {activeStep === 'basics' ? (
+          {!isNew ? (
+            <div className="segmented-control" role="tablist">
+              {[
+                { key: 'schema', label: 'Schema' },
+                { key: 'feedback', label: 'Training Feedback' },
+                { key: 'held', label: 'Held Documents' }
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  aria-pressed={activeTab === tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {isNew && activeStep === 'basics' ? (
             <section className="panel">
               <div className="panel-header">
                 <div>
@@ -359,7 +501,7 @@ export function ExtractorDetailPage() {
             </section>
           ) : null}
 
-          {activeStep === 'schema' ? (
+          {(isNew ? activeStep === 'schema' : activeTab === 'schema') ? (
             <div className="panel-stack">
               <section className="panel">
                 <div className="panel-header">
@@ -553,118 +695,254 @@ export function ExtractorDetailPage() {
             </div>
           ) : null}
 
-          {activeStep === 'hold' ? (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Hold Rules</h2>
-                  <p>Control which documents are held for manual review.</p>
-                </div>
-              </div>
-
-              <div className="form-grid">
-                <label className="toggle">
-                  <input
-                    type="checkbox"
-                    checked={holdAllDocuments}
-                    onChange={(event) => setHoldAllDocuments(event.target.checked)}
-                  />
-                  <span className="toggle-track" />
-                  <span className="toggle-label">Hold all documents in this extractor</span>
-                </label>
-              </div>
-
-              <div className="card-grid">
-                <div className="card-item">
-                  <div className="card-title">Required Header Fields</div>
-                  <div className="card-meta">{requiredHeaderCount} fields marked required</div>
-                </div>
-                <div className="card-item">
-                  <div className="card-title">Required Tables</div>
-                  <div className="card-meta">{requiredTableCount} tables marked required</div>
-                </div>
-                {extractorMeta ? (
-                  <div className="card-item">
-                    <div className="card-title">Held Documents</div>
-                    <div className="card-meta">
-                      {extractorMeta.heldDocumentCount || extractorMeta.heldDocuments?.length || 0}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </section>
-          ) : null}
-
-          <div className="panel-actions">
-            <button type="button" className="btn btn-ghost" onClick={previousStep} disabled={activeIndex === 0}>
-              Back
-            </button>
-            <button type="button" className="btn btn-outline" onClick={nextStep} disabled={activeIndex === STEPS.length - 1}>
-              Next
-            </button>
-          </div>
-
-          {extractorMeta ? (
-            <div className="panel-grid">
+          {!isNew && activeTab === 'feedback' ? (
+            <div className="panel-stack">
               <section className="panel">
                 <div className="panel-header">
                   <div>
-                    <h2>Held Documents</h2>
-                    <p>Documents waiting for operator review.</p>
+                    <h2>Capture Training Feedback</h2>
+                    <p>Log corrections after testing documents so similar ones improve over time.</p>
                   </div>
                 </div>
-                {heldDocuments.length === 0 ? (
-                  <p className="muted-text">No held documents for this extractor.</p>
+                <div className="form-grid">
+                  <label htmlFor="feedback-document-id">Document ID</label>
+                  <input
+                    id="feedback-document-id"
+                    type="text"
+                    value={feedbackDocumentId}
+                    onChange={(event) => setFeedbackDocumentId(event.target.value)}
+                    placeholder="doc_123"
+                  />
+
+                  <label htmlFor="feedback-target-type">Target type</label>
+                  <select
+                    id="feedback-target-type"
+                    value={feedbackTargetType}
+                    onChange={(event) => setFeedbackTargetType(event.target.value)}
+                  >
+                    <option value="header">Header field</option>
+                    <option value="table">Table column</option>
+                  </select>
+
+                  <label htmlFor="feedback-target-path">Target path</label>
+                  <input
+                    id="feedback-target-path"
+                    type="text"
+                    value={feedbackTargetPath}
+                    onChange={(event) => setFeedbackTargetPath(event.target.value)}
+                    placeholder="InvoiceNumber or LineItems[].Price"
+                  />
+
+                  <label htmlFor="feedback-text">Feedback</label>
+                  <textarea
+                    id="feedback-text"
+                    rows={4}
+                    value={feedbackText}
+                    onChange={(event) => setFeedbackText(event.target.value)}
+                    placeholder="Describe the correction that should be applied."
+                  />
+                </div>
+
+                {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
+                {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
+
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
+                    Add Feedback
+                  </button>
+                </div>
+              </section>
+
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Feedback History</h2>
+                    <p>Stored feedback used to guide future extractions.</p>
+                  </div>
+                </div>
+                {feedbacks.length === 0 ? (
+                  <p className="muted-text">No feedback recorded yet.</p>
                 ) : (
                   <div className="data-table">
                     <div className="data-header four-col">
                       <span>Document</span>
-                      <span>Workflow</span>
-                      <span>Node</span>
-                      <span>Arrived</span>
+                      <span>Target</span>
+                      <span>Feedback</span>
+                      <span></span>
                     </div>
-                    {heldDocuments.map((item, index) => (
-                      <div className="data-row four-col" key={item.document?.id || `${index}`}>
+                    {feedbacks.map((feedback) => (
+                      <div className="data-row four-col" key={feedback.id}>
                         <div className="data-cell">
-                          <span className="card-title">
-                            {item.document?.fileName || item.document?.id || 'Document'}
+                          <span className="card-title">{feedback.documentId || 'Document'}</span>
+                          <span className="data-meta">{feedback.createdAt ? formatTimestamp(feedback.createdAt) : ''}</span>
+                        </div>
+                        <div className="data-cell">
+                          <span className="data-meta">
+                            {feedback.targetType || 'Target'} {feedback.targetPath ? `· ${feedback.targetPath}` : ''}
                           </span>
-                          <span className="data-meta">{item.document?.id || 'No ID'}</span>
                         </div>
                         <div className="data-cell">
-                          {item.workflowId ? (
-                            <Link
-                              className="btn btn-ghost"
-                              to={`/app/workflows/${item.workflowId}/canvas?nodeId=${item.nodeId}`}
-                            >
-                              {item.workflowName || 'Workflow'}
-                            </Link>
-                          ) : (
-                            <span className="data-meta">Workflow pending</span>
-                          )}
+                          <span className="data-meta">{feedback.feedbackText || '—'}</span>
                         </div>
                         <div className="data-cell">
-                          <span className="data-meta">{item.nodeName || 'Node'}</span>
-                        </div>
-                        <div className="data-cell">
-                          <span className="data-meta">{formatTimestamp(item.arrivedAt)}</span>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => handleDeleteFeedback(feedback.id)}
+                            aria-label="Delete feedback"
+                          >
+                            ×
+                          </button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
               </section>
+            </div>
+          ) : null}
+
+          {!isNew && activeTab === 'held' ? (
+            <section className="panel-stack">
+              <section className="panel">
+                <div className="panel-header">
+                  <div>
+                    <h2>Hold Settings</h2>
+                    <p>Control when documents are held in this extractor.</p>
+                  </div>
+                </div>
+
+                <div className="form-grid">
+                  <label className="toggle">
+                    <input
+                      type="checkbox"
+                      checked={holdAllDocuments}
+                      onChange={(event) => setHoldAllDocuments(event.target.checked)}
+                    />
+                    <span className="toggle-track" />
+                    <span className="toggle-label">Hold all documents by default</span>
+                  </label>
+                </div>
+
+                <div className="card-grid">
+                  <div className="card-item">
+                    <div className="card-title">Required Header Fields</div>
+                    <div className="card-meta">{requiredHeaderCount} fields marked required</div>
+                  </div>
+                  <div className="card-item">
+                    <div className="card-title">Required Tables</div>
+                    <div className="card-meta">{requiredTableCount} tables marked required</div>
+                  </div>
+                  <div className="card-item">
+                    <div className="card-title">Held Documents</div>
+                    <div className="card-meta">
+                      {extractorMeta?.heldDocumentCount || extractorMeta?.heldDocuments?.length || 0}
+                    </div>
+                  </div>
+                </div>
+              </section>
 
               <section className="panel">
                 <div className="panel-header">
                   <div>
-                    <h2>Workflow Usage</h2>
-                    <p>Jump to the nodes using this extractor.</p>
+                    <h2>Held Documents</h2>
+                    <p>Review documents waiting for manual release.</p>
+                  </div>
+                  <div className="panel-actions">
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={handleSendOutSelected}
+                      disabled={!selectedHeldDocs.length}
+                    >
+                      Send Selected ({selectedHeldDocs.length})
+                    </button>
                   </div>
                 </div>
-                <UsageList usages={extractorMeta.nodeUsages || []} />
+
+                {heldDocuments.length === 0 ? (
+                  <p className="muted-text">No held documents for this extractor.</p>
+                ) : (
+                  <div className="data-table">
+                    <div className="data-header five-col">
+                      <span></span>
+                      <span>Document</span>
+                      <span>Reason</span>
+                      <span>Workflow</span>
+                      <span>Held At</span>
+                    </div>
+                    {heldDocuments.map((item, index) => {
+                      const docId = item.document?.id;
+                      const isSelected = docId ? selectedHeldDocs.includes(docId) : false;
+                      return (
+                        <div className="data-row five-col" key={docId || `${index}`}>
+                          <div className="data-cell">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleHeldSelection(docId)}
+                              disabled={!docId}
+                            />
+                          </div>
+                          <div className="data-cell">
+                            <span className="card-title">
+                              {item.document?.fileName || item.document?.id || 'Document'}
+                            </span>
+                            <span className="data-meta">{item.document?.id || 'No ID'}</span>
+                          </div>
+                          <div className="data-cell">
+                            <span className="data-meta">{resolveHeldReason(item)}</span>
+                          </div>
+                          <div className="data-cell">
+                            {item.workflowId ? (
+                              <Link
+                                className="btn btn-ghost"
+                                to={`/app/workflows/${item.workflowId}/canvas?nodeId=${item.nodeId}`}
+                              >
+                                {item.workflowName || 'Workflow'}
+                              </Link>
+                            ) : (
+                              <span className="data-meta">Workflow pending</span>
+                            )}
+                          </div>
+                          <div className="data-cell">
+                            <span className="data-meta">{formatTimestamp(item.heldAt || item.arrivedAt)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </section>
+            </section>
+          ) : null}
+
+          {isNew ? (
+            <div className="panel-actions">
+              <button type="button" className="btn btn-ghost" onClick={previousStep} disabled={activeIndex === 0}>
+                Back
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={nextStep}
+                disabled={isSaving}
+              >
+                {activeIndex >= createSteps.length - 1 ? 'Create Extractor' : 'Next'}
+              </button>
             </div>
+          ) : null}
+
+          {!isNew && activeTab === 'schema' ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Workflow Usage</h2>
+                  <p>Jump to the nodes using this extractor.</p>
+                </div>
+              </div>
+              <UsageList usages={extractorMeta?.nodeUsages || []} />
+            </section>
           ) : null}
         </>
       ) : null}

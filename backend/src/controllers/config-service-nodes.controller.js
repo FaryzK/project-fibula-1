@@ -1,5 +1,6 @@
 const {
   addExtractorFeedback,
+  deleteExtractorFeedback,
   createCategorisationPrompt,
   createDocumentFolder,
   createExtractor,
@@ -201,6 +202,24 @@ function addExtractorFeedbackController(req, res) {
   return res.status(201).json({ feedback });
 }
 
+function deleteExtractorFeedbackController(req, res) {
+  const result = deleteExtractorFeedback(
+    req.user.id,
+    req.params.extractorId,
+    req.params.feedbackId
+  );
+
+  if (!result) {
+    return res.status(404).json({ error: 'Extractor not found' });
+  }
+
+  if (!result.success) {
+    return res.status(404).json({ error: 'Feedback not found' });
+  }
+
+  return res.status(200).json({ success: true });
+}
+
 function holdDocumentInExtractorController(req, res) {
   const heldDocument = holdDocumentInExtractor(req.user.id, req.params.extractorId, req.body || {});
 
@@ -227,6 +246,7 @@ function sendOutFromExtractorController(req, res) {
 
 module.exports = {
   addExtractorFeedbackController,
+  deleteExtractorFeedbackController,
   createCategorisationPromptController,
   createDocumentFolderController,
   createExtractorController,

@@ -72,6 +72,20 @@ export async function createExtractor(payload) {
   return response.data.extractor;
 }
 
+export async function addExtractorFeedback(extractorId, payload) {
+  const response = await api.post(`/extractors/${extractorId}/feedbacks`, payload);
+  return response.data.feedback;
+}
+
+export async function deleteExtractorFeedback(extractorId, feedbackId) {
+  await api.delete(`/extractors/${extractorId}/feedbacks/${feedbackId}`);
+}
+
+export async function sendOutFromExtractor(extractorId, payload) {
+  const response = await api.post(`/extractors/${extractorId}/send-out`, payload);
+  return response.data.releasedDocuments || [];
+}
+
 export async function updateExtractor(extractorId, payload) {
   const response = await api.patch(`/extractors/${extractorId}`, payload);
   return response.data.extractor;
