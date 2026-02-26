@@ -106,60 +106,86 @@ export function ExtractorsTab() {
   }
 
   return (
-    <section className="panel">
-      <h2>Extractors</h2>
-      <p>Create extractor schema and manage held documents behavior.</p>
+    <section className="panel-grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Extractors</h2>
+            <p>Create extractor schema and manage held documents behavior.</p>
+          </div>
+        </div>
 
-      <label htmlFor="extractor-name">Extractor name</label>
-      <br />
-      <input
-        id="extractor-name"
-        type="text"
-        value={extractorName}
-        onChange={(event) => setExtractorName(event.target.value)}
-      />
-      <br />
-      <label htmlFor="extractor-schema">Schema (JSON)</label>
-      <br />
-      <textarea
-        id="extractor-schema"
-        rows={8}
-        value={schemaText}
-        onChange={(event) => setSchemaText(event.target.value)}
-      />
-      <br />
-      <button type="button" onClick={handleSubmit}>
-        {editingExtractorId ? 'Save Extractor' : '+ New Extractor'}
-      </button>
-      {editingExtractorId ? (
-        <button type="button" onClick={cancelEdit}>
-          Cancel Edit
-        </button>
-      ) : null}
+        <div className="form-grid">
+          <label htmlFor="extractor-name">Extractor name</label>
+          <input
+            id="extractor-name"
+            type="text"
+            value={extractorName}
+            onChange={(event) => setExtractorName(event.target.value)}
+          />
 
-      {errorText ? <p className="status-error">{errorText}</p> : null}
-      {isLoading ? <p>Loading extractors...</p> : null}
-      {!isLoading && extractors.length === 0 ? <p>No extractors yet.</p> : null}
+          <label htmlFor="extractor-schema">Schema (JSON)</label>
+          <textarea
+            id="extractor-schema"
+            rows={8}
+            value={schemaText}
+            onChange={(event) => setSchemaText(event.target.value)}
+          />
+        </div>
 
-      <ul>
-        {extractors.map((extractor) => (
-          <li key={extractor.id}>
-            <strong>{extractor.name}</strong>
-            <p>Held documents: {extractor.heldDocumentCount || extractor.heldDocuments?.length || 0}</p>
-            <p>Feedbacks: {extractor.feedbackCount || extractor.feedbacks?.length || 0}</p>
-            <p>Used by nodes: {extractor.nodeUsages?.length || 0}</p>
-            <button type="button" onClick={() => beginEdit(extractor)}>
-              Edit
+        <div className="panel-actions">
+          <button type="button" className="btn-primary" onClick={handleSubmit}>
+            {editingExtractorId ? 'Save Extractor' : 'New Extractor'}
+          </button>
+          {editingExtractorId ? (
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel Edit
             </button>
-            <button type="button" onClick={() => handleDelete(extractor.id)}>
-              Delete
-            </button>
-            <button type="button" onClick={() => toggleHoldAll(extractor)}>
-              {extractor.holdAllDocuments ? 'Disable Hold All' : 'Enable Hold All'}
-            </button>
-          </li>
-        ))}
-      </ul>
+          ) : null}
+        </div>
+
+        {errorText ? <p className="status-error">{errorText}</p> : null}
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Extractor Library</h3>
+            <p>Monitor feedback, held documents, and node usage.</p>
+          </div>
+        </div>
+
+        {isLoading ? <p>Loading extractors...</p> : null}
+        {!isLoading && extractors.length === 0 ? <p>No extractors yet.</p> : null}
+
+        {!isLoading && extractors.length > 0 ? (
+          <div className="card-grid">
+            {extractors.map((extractor) => (
+              <div className="card-item" key={extractor.id}>
+                <div className="card-title">{extractor.name}</div>
+                <div className="card-meta">
+                  Held documents: {extractor.heldDocumentCount || extractor.heldDocuments?.length || 0}
+                </div>
+                <div className="card-meta">
+                  Feedbacks: {extractor.feedbackCount || extractor.feedbacks?.length || 0}
+                </div>
+                <div className="card-meta">Used by nodes: {extractor.nodeUsages?.length || 0}</div>
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => beginEdit(extractor)}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={() => toggleHoldAll(extractor)}>
+                    {extractor.holdAllDocuments ? 'Disable Hold All' : 'Enable Hold All'}
+                  </button>
+                  <button type="button" className="btn-danger" onClick={() => handleDelete(extractor.id)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

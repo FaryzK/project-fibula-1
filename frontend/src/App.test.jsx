@@ -1,10 +1,25 @@
 import React from 'react';
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { AppRoutes } from './App';
 import { useAuthStore } from './stores/authStore';
 import { useWorkflowStore } from './stores/workflowStore';
+
+vi.mock('./services/workflowApi', () => ({
+  listWorkflows: vi.fn().mockResolvedValue([])
+}));
+
+vi.mock('./services/configServiceNodesApi', () => ({
+  listExtractors: vi.fn().mockResolvedValue([]),
+  listDocumentFolders: vi.fn().mockResolvedValue([])
+}));
+
+vi.mock('./services/dataMapperReconciliationApi', () => ({
+  listReconciliationRules: vi.fn().mockResolvedValue([]),
+  listDataMapSets: vi.fn().mockResolvedValue([]),
+  listDataMapRules: vi.fn().mockResolvedValue([])
+}));
 
 describe('App', () => {
   afterEach(() => {
@@ -62,7 +77,7 @@ describe('App', () => {
       </MemoryRouter>
     );
 
-    expect(await screen.findByRole('heading', { name: /workflow tab/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /ops dashboard/i, level: 1 })).toBeTruthy();
   });
 
   it('shows loading state while auth session is hydrating', async () => {

@@ -221,162 +221,212 @@ export function DataMapperTab() {
   }
 
   return (
-    <section className="panel">
-      <h2>Data Mapper</h2>
-      <p>Manage data map sets and data map rules used by Data Mapper nodes.</p>
+    <section className="panel-stack">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Data Mapper</h2>
+            <p>Manage data map sets and data map rules used by Data Mapper nodes.</p>
+          </div>
+        </div>
 
-      <button
-        type="button"
-        onClick={() => setActiveView('sets')}
-        aria-pressed={activeView === 'sets'}
-      >
-        Data Map Sets
-      </button>
-      <button
-        type="button"
-        onClick={() => setActiveView('rules')}
-        aria-pressed={activeView === 'rules'}
-      >
-        Data Map Rules
-      </button>
+        <div className="segmented-control" role="tablist">
+          <button
+            type="button"
+            onClick={() => setActiveView('sets')}
+            aria-pressed={activeView === 'sets'}
+          >
+            Data Map Sets
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveView('rules')}
+            aria-pressed={activeView === 'rules'}
+          >
+            Data Map Rules
+          </button>
+        </div>
 
-      {errorText ? <p className="status-error">{errorText}</p> : null}
+        {errorText ? <p className="status-error">{errorText}</p> : null}
+      </div>
 
       {activeView === 'sets' ? (
-        <div>
-          <h3>Data Map Sets</h3>
-          <label htmlFor="data-map-set-name">Set name</label>
-          <br />
-          <input
-            id="data-map-set-name"
-            type="text"
-            value={setName}
-            onChange={(event) => setSetName(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-set-headers">Headers (JSON array)</label>
-          <br />
-          <textarea
-            id="data-map-set-headers"
-            rows={4}
-            value={headersText}
-            onChange={(event) => setHeadersText(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-set-records">Records (JSON array)</label>
-          <br />
-          <textarea
-            id="data-map-set-records"
-            rows={6}
-            value={recordsText}
-            onChange={(event) => setRecordsText(event.target.value)}
-          />
-          <br />
-          <button type="button" onClick={handleSetSubmit}>
-            {editingSetId ? 'Save Data Map Set' : 'Add Data Map Set'}
-          </button>
-          {editingSetId ? (
-            <button type="button" onClick={resetSetForm}>
-              Cancel Edit
-            </button>
-          ) : null}
+        <div className="panel-grid">
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Data Map Sets</h3>
+                <p>Provide lookup tables for enrichments.</p>
+              </div>
+            </div>
 
-          {isLoadingSets ? <p>Loading data map sets...</p> : null}
-          {!isLoadingSets && sets.length === 0 ? <p>No data map sets yet.</p> : null}
+            <div className="form-grid">
+              <label htmlFor="data-map-set-name">Set name</label>
+              <input
+                id="data-map-set-name"
+                type="text"
+                value={setName}
+                onChange={(event) => setSetName(event.target.value)}
+              />
 
-          <ul>
-            {sets.map((dataMapSet) => (
-              <li key={dataMapSet.id}>
-                <strong>{dataMapSet.name}</strong>
-                <p>Headers: {dataMapSet.headers?.length || 0}</p>
-                <p>Records: {dataMapSet.records?.length || 0}</p>
-                <button type="button" onClick={() => beginSetEdit(dataMapSet)}>
-                  Edit
+              <label htmlFor="data-map-set-headers">Headers (JSON array)</label>
+              <textarea
+                id="data-map-set-headers"
+                rows={4}
+                value={headersText}
+                onChange={(event) => setHeadersText(event.target.value)}
+              />
+
+              <label htmlFor="data-map-set-records">Records (JSON array)</label>
+              <textarea
+                id="data-map-set-records"
+                rows={6}
+                value={recordsText}
+                onChange={(event) => setRecordsText(event.target.value)}
+              />
+            </div>
+
+            <div className="panel-actions">
+              <button type="button" className="btn-primary" onClick={handleSetSubmit}>
+                {editingSetId ? 'Save Data Map Set' : 'Add Data Map Set'}
+              </button>
+              {editingSetId ? (
+                <button type="button" className="btn btn-ghost" onClick={resetSetForm}>
+                  Cancel Edit
                 </button>
-                <button type="button" onClick={() => handleSetDelete(dataMapSet.id)}>
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Set Library</h3>
+                <p>Existing data map sets in the workspace.</p>
+              </div>
+            </div>
+
+            {isLoadingSets ? <p>Loading data map sets...</p> : null}
+            {!isLoadingSets && sets.length === 0 ? <p>No data map sets yet.</p> : null}
+
+            {!isLoadingSets && sets.length > 0 ? (
+              <div className="card-grid">
+                {sets.map((dataMapSet) => (
+                  <div className="card-item" key={dataMapSet.id}>
+                    <div className="card-title">{dataMapSet.name}</div>
+                    <div className="card-meta">Headers: {dataMapSet.headers?.length || 0}</div>
+                    <div className="card-meta">Records: {dataMapSet.records?.length || 0}</div>
+                    <div className="panel-actions">
+                      <button type="button" className="btn btn-outline" onClick={() => beginSetEdit(dataMapSet)}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn-danger" onClick={() => handleSetDelete(dataMapSet.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : (
-        <div>
-          <h3>Data Map Rules</h3>
-          <label htmlFor="data-map-rule-name">Rule name</label>
-          <br />
-          <input
-            id="data-map-rule-name"
-            type="text"
-            value={ruleName}
-            onChange={(event) => setRuleName(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-rule-extractor-name">Extractor name</label>
-          <br />
-          <input
-            id="data-map-rule-extractor-name"
-            type="text"
-            value={extractorName}
-            onChange={(event) => setExtractorName(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-rule-map-targets">Map targets (JSON array)</label>
-          <br />
-          <textarea
-            id="data-map-rule-map-targets"
-            rows={5}
-            value={mapTargetsText}
-            onChange={(event) => setMapTargetsText(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-rule-lookups">Lookups (JSON array)</label>
-          <br />
-          <textarea
-            id="data-map-rule-lookups"
-            rows={5}
-            value={lookupsText}
-            onChange={(event) => setLookupsText(event.target.value)}
-          />
-          <br />
-          <label htmlFor="data-map-rule-node-usages">Node usages (JSON array)</label>
-          <br />
-          <textarea
-            id="data-map-rule-node-usages"
-            rows={3}
-            value={nodeUsagesText}
-            onChange={(event) => setNodeUsagesText(event.target.value)}
-          />
-          <br />
-          <button type="button" onClick={handleRuleSubmit}>
-            {editingRuleId ? 'Save Data Map Rule' : 'Add Data Map Rule'}
-          </button>
-          {editingRuleId ? (
-            <button type="button" onClick={resetRuleForm}>
-              Cancel Edit
-            </button>
-          ) : null}
+        <div className="panel-grid">
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Data Map Rules</h3>
+                <p>Define enrichment logic tied to extractor output.</p>
+              </div>
+            </div>
 
-          {isLoadingRules ? <p>Loading data map rules...</p> : null}
-          {!isLoadingRules && rules.length === 0 ? <p>No data map rules yet.</p> : null}
+            <div className="form-grid">
+              <label htmlFor="data-map-rule-name">Rule name</label>
+              <input
+                id="data-map-rule-name"
+                type="text"
+                value={ruleName}
+                onChange={(event) => setRuleName(event.target.value)}
+              />
 
-          <ul>
-            {rules.map((rule) => (
-              <li key={rule.id}>
-                <strong>{rule.name}</strong>
-                <p>Extractor: {rule.extractorName || '(not set)'}</p>
-                <p>Map targets: {rule.mapTargets?.length || 0}</p>
-                <p>Lookups: {rule.lookups?.length || 0}</p>
-                <p>Used by nodes: {rule.nodeUsages?.length || 0}</p>
-                <button type="button" onClick={() => beginRuleEdit(rule)}>
-                  Edit
+              <label htmlFor="data-map-rule-extractor-name">Extractor name</label>
+              <input
+                id="data-map-rule-extractor-name"
+                type="text"
+                value={extractorName}
+                onChange={(event) => setExtractorName(event.target.value)}
+              />
+
+              <label htmlFor="data-map-rule-map-targets">Map targets (JSON array)</label>
+              <textarea
+                id="data-map-rule-map-targets"
+                rows={5}
+                value={mapTargetsText}
+                onChange={(event) => setMapTargetsText(event.target.value)}
+              />
+
+              <label htmlFor="data-map-rule-lookups">Lookups (JSON array)</label>
+              <textarea
+                id="data-map-rule-lookups"
+                rows={5}
+                value={lookupsText}
+                onChange={(event) => setLookupsText(event.target.value)}
+              />
+
+              <label htmlFor="data-map-rule-node-usages">Node usages (JSON array)</label>
+              <textarea
+                id="data-map-rule-node-usages"
+                rows={3}
+                value={nodeUsagesText}
+                onChange={(event) => setNodeUsagesText(event.target.value)}
+              />
+            </div>
+
+            <div className="panel-actions">
+              <button type="button" className="btn-primary" onClick={handleRuleSubmit}>
+                {editingRuleId ? 'Save Data Map Rule' : 'Add Data Map Rule'}
+              </button>
+              {editingRuleId ? (
+                <button type="button" className="btn btn-ghost" onClick={resetRuleForm}>
+                  Cancel Edit
                 </button>
-                <button type="button" onClick={() => handleRuleDelete(rule.id)}>
-                  Delete
-                </button>
-              </li>
-            ))}
-          </ul>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h3>Rule Library</h3>
+                <p>Track rule usage across the workflow canvas.</p>
+              </div>
+            </div>
+
+            {isLoadingRules ? <p>Loading data map rules...</p> : null}
+            {!isLoadingRules && rules.length === 0 ? <p>No data map rules yet.</p> : null}
+
+            {!isLoadingRules && rules.length > 0 ? (
+              <div className="card-grid">
+                {rules.map((rule) => (
+                  <div className="card-item" key={rule.id}>
+                    <div className="card-title">{rule.name}</div>
+                    <div className="card-meta">Extractor: {rule.extractorName || '(not set)'}</div>
+                    <div className="card-meta">Map targets: {rule.mapTargets?.length || 0}</div>
+                    <div className="card-meta">Lookups: {rule.lookups?.length || 0}</div>
+                    <div className="card-meta">Used by nodes: {rule.nodeUsages?.length || 0}</div>
+                    <div className="panel-actions">
+                      <button type="button" className="btn btn-outline" onClick={() => beginRuleEdit(rule)}>
+                        Edit
+                      </button>
+                      <button type="button" className="btn-danger" onClick={() => handleRuleDelete(rule.id)}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       )}
     </section>

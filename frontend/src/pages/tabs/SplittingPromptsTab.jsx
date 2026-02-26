@@ -86,56 +86,78 @@ export function SplittingPromptsTab() {
   }
 
   return (
-    <section className="panel">
-      <h2>Document Splitting Prompts</h2>
-      <p>Add reusable splitting instructions for document splitting nodes.</p>
+    <section className="panel-grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Document Splitting Prompts</h2>
+            <p>Add reusable splitting instructions for document splitting nodes.</p>
+          </div>
+        </div>
 
-      <label htmlFor="splitting-prompt-name">Prompt name</label>
-      <br />
-      <input
-        id="splitting-prompt-name"
-        type="text"
-        value={name}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <br />
-      <label htmlFor="splitting-prompt-instructions">Instructions</label>
-      <br />
-      <textarea
-        id="splitting-prompt-instructions"
-        rows={4}
-        value={instructions}
-        onChange={(event) => setInstructions(event.target.value)}
-      />
-      <br />
-      <button type="button" onClick={handleSubmit}>
-        {editingPromptId ? 'Save Splitting Prompt' : 'Add New Splitting Instructions'}
-      </button>
-      {editingPromptId ? (
-        <button type="button" onClick={cancelEdit}>
-          Cancel Edit
-        </button>
-      ) : null}
+        <div className="form-grid">
+          <label htmlFor="splitting-prompt-name">Prompt name</label>
+          <input
+            id="splitting-prompt-name"
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
 
-      {errorText ? <p className="status-error">{errorText}</p> : null}
-      {isLoading ? <p>Loading splitting prompts...</p> : null}
-      {!isLoading && prompts.length === 0 ? <p>No splitting prompts yet.</p> : null}
+          <label htmlFor="splitting-prompt-instructions">Instructions</label>
+          <textarea
+            id="splitting-prompt-instructions"
+            rows={4}
+            value={instructions}
+            onChange={(event) => setInstructions(event.target.value)}
+          />
+        </div>
 
-      <ul>
-        {prompts.map((prompt) => (
-          <li key={prompt.id}>
-            <strong>{prompt.name}</strong>
-            <p>{prompt.instructionsPreview || '(No instructions)'}</p>
-            <p>Used by nodes: {prompt.nodeUsages?.length || 0}</p>
-            <button type="button" onClick={() => beginEdit(prompt)}>
-              Edit
+        <div className="panel-actions">
+          <button type="button" className="btn-primary" onClick={handleSubmit}>
+            {editingPromptId ? 'Save Splitting Prompt' : 'Add New Splitting Instructions'}
+          </button>
+          {editingPromptId ? (
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel Edit
             </button>
-            <button type="button" onClick={() => handleDelete(prompt.id)}>
-              Delete
-            </button>
-          </li>
-        ))}
-      </ul>
+          ) : null}
+        </div>
+
+        {errorText ? <p className="status-error">{errorText}</p> : null}
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Prompt Library</h3>
+            <p>Reuse these prompts across splitting nodes.</p>
+          </div>
+        </div>
+
+        {isLoading ? <p>Loading splitting prompts...</p> : null}
+        {!isLoading && prompts.length === 0 ? <p>No splitting prompts yet.</p> : null}
+
+        {!isLoading && prompts.length > 0 ? (
+          <div className="card-grid">
+            {prompts.map((prompt) => (
+              <div className="card-item" key={prompt.id}>
+                <div className="card-title">{prompt.name}</div>
+                <div className="card-meta">{prompt.instructionsPreview || '(No instructions)'}</div>
+                <div className="card-meta">Used by nodes: {prompt.nodeUsages?.length || 0}</div>
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => beginEdit(prompt)}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn-danger" onClick={() => handleDelete(prompt.id)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

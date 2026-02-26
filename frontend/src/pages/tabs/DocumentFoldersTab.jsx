@@ -88,49 +88,73 @@ export function DocumentFoldersTab() {
   }
 
   return (
-    <section className="panel">
-      <h2>Document Folders</h2>
-      <p>Create folders to hold documents for human review and send-out.</p>
+    <section className="panel-grid">
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h2>Document Folders</h2>
+            <p>Create folders to hold documents for human review and send-out.</p>
+          </div>
+        </div>
 
-      <label htmlFor="document-folder-name">Folder name</label>
-      <br />
-      <input
-        id="document-folder-name"
-        type="text"
-        value={folderName}
-        onChange={(event) => setFolderName(event.target.value)}
-      />
-      <button type="button" onClick={handleSubmit}>
-        {editingFolderId ? 'Save Folder' : 'Add Folder'}
-      </button>
-      {editingFolderId ? (
-        <button type="button" onClick={cancelEdit}>
-          Cancel Edit
-        </button>
-      ) : null}
+        <div className="form-grid">
+          <label htmlFor="document-folder-name">Folder name</label>
+          <input
+            id="document-folder-name"
+            type="text"
+            value={folderName}
+            onChange={(event) => setFolderName(event.target.value)}
+          />
+        </div>
 
-      {errorText ? <p className="status-error">{errorText}</p> : null}
-      {isLoading ? <p>Loading document folders...</p> : null}
-      {!isLoading && folders.length === 0 ? <p>No document folders yet.</p> : null}
+        <div className="panel-actions">
+          <button type="button" className="btn-primary" onClick={handleSubmit}>
+            {editingFolderId ? 'Save Folder' : 'Add Folder'}
+          </button>
+          {editingFolderId ? (
+            <button type="button" className="btn btn-ghost" onClick={cancelEdit}>
+              Cancel Edit
+            </button>
+          ) : null}
+        </div>
 
-      <ul>
-        {folders.map((folder) => (
-          <li key={folder.id}>
-            <strong>{folder.name}</strong>
-            <p>Held documents: {folder.heldDocumentCount || folder.heldDocuments?.length || 0}</p>
-            <p>Used by nodes: {folder.nodeUsages?.length || 0}</p>
-            <button type="button" onClick={() => beginEdit(folder)}>
-              Edit
-            </button>
-            <button type="button" onClick={() => handleDelete(folder.id)}>
-              Delete
-            </button>
-            <button type="button" onClick={() => handleSendOutAll(folder)}>
-              Send Out All Held Documents
-            </button>
-          </li>
-        ))}
-      </ul>
+        {errorText ? <p className="status-error">{errorText}</p> : null}
+      </div>
+
+      <div className="panel">
+        <div className="panel-header">
+          <div>
+            <h3>Folder Instances</h3>
+            <p>Track held documents and send-out actions.</p>
+          </div>
+        </div>
+
+        {isLoading ? <p>Loading document folders...</p> : null}
+        {!isLoading && folders.length === 0 ? <p>No document folders yet.</p> : null}
+
+        {!isLoading && folders.length > 0 ? (
+          <div className="card-grid">
+            {folders.map((folder) => (
+              <div className="card-item" key={folder.id}>
+                <div className="card-title">{folder.name}</div>
+                <div className="card-meta">Held documents: {folder.heldDocumentCount || folder.heldDocuments?.length || 0}</div>
+                <div className="card-meta">Used by nodes: {folder.nodeUsages?.length || 0}</div>
+                <div className="panel-actions">
+                  <button type="button" className="btn btn-outline" onClick={() => beginEdit(folder)}>
+                    Edit
+                  </button>
+                  <button type="button" className="btn btn-outline" onClick={() => handleSendOutAll(folder)}>
+                    Send Out Held
+                  </button>
+                  <button type="button" className="btn-danger" onClick={() => handleDelete(folder.id)}>
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }
