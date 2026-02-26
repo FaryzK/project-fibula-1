@@ -14,6 +14,13 @@ import {
 import '@xyflow/react/dist/style.css';
 import { CanvasNodeCard } from '../components/nodes/CanvasNodeCard';
 import {
+  applySetValuePreview,
+  evaluateIfNodePreview,
+  evaluateSwitchNodePreview,
+  getDefaultNodeConfig,
+  getNodePorts
+} from './coreNodeUtils';
+import {
   filterNodeTemplates,
   findRecenterTarget,
   getNextAvailablePosition
@@ -35,12 +42,25 @@ const nodeTypes = {
   fibulaNode: CanvasNodeCard
 };
 
+const BASE_MENU_TEXT = {
+  input: 'Document and metadata',
+  output: 'Node-specific output signal/document'
+};
+
 function createNodeId() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') {
     return globalThis.crypto.randomUUID();
   }
 
   return `node_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function safeParseJson(text) {
+  try {
+    return { value: JSON.parse(text), error: null };
+  } catch (_error) {
+    return { value: null, error: 'Sample metadata must be valid JSON.' };
+  }
 }
 
 function WorkflowCanvasContent({ workflowId }) {
@@ -52,6 +72,18 @@ function WorkflowCanvasContent({ workflowId }) {
   const [isNodeLibraryOpen, setIsNodeLibraryOpen] = useState(false);
   const [nodeSearchQuery, setNodeSearchQuery] = useState('');
   const [branchSourceNodeId, setBranchSourceNodeId] = useState(null);
+  const [sampleMetadataText, setSampleMetadataText] = useState(
+    JSON.stringify(
+      {
+        totalAmount: 50,
+        approved: false,
+        vendor: { name: 'Acme Corporation' }
+      },
+      null,
+      2
+    )
+  );
+  const [previewResult, setPreviewResult] = useState('');
 
   const filteredTemplates = useMemo(() => {
     return filterNodeTemplates(NODE_LIBRARY, nodeSearchQuery);
@@ -114,6 +146,7 @@ function WorkflowCanvasContent({ workflowId }) {
       label: template.label,
       icon: template.icon,
       nodeTypeKey: template.key,
+      config: getDefaultNodeConfig(template.key),
       createdAt: new Date().toISOString(),
       onRename: renameNode,
       onQuickAdd: openBranchLibrary
@@ -149,13 +182,18 @@ function WorkflowCanvasContent({ workflowId }) {
     setSelectedNodeId(nodeId);
 
     if (branchSourceNodeId) {
+      const sourcePorts = getNodePorts(branchSourceNode.data).outputs;
+      const sourceHandle = sourcePorts[0]?.id;
       const edgeId = `edge_${branchSourceNodeId}_${nodeId}`;
+
       setEdges((currentEdges) => [
         ...currentEdges,
         {
           id: edgeId,
           source: branchSourceNodeId,
+          sourceHandle,
           target: nodeId,
+          targetHandle: 'in-primary',
           type: 'smoothstep'
         }
       ]);
@@ -171,6 +209,24 @@ function WorkflowCanvasContent({ workflowId }) {
     });
   }
 
+  function updateNodeConfig(nodeId, updater) {
+    setNodes((currentNodes) => {
+      return currentNodes.map((node) => {
+        if (node.id !== nodeId) {
+          return node;
+        }
+
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config: updater(node.data.config || {})
+          }
+        };
+      });
+    });
+  }
+
   function recenterView() {
     const target = findRecenterTarget(nodes);
     reactFlow.setCenter(target.x, target.y, { zoom: 1, duration: 350 });
@@ -180,6 +236,380 @@ function WorkflowCanvasContent({ workflowId }) {
     setIsNodeLibraryOpen(false);
     setNodeSearchQuery('');
     setBranchSourceNodeId(null);
+  }
+
+  function runPreview() {
+    if (!selectedNode) {
+      return;
+    }
+
+    const parsed = safeParseJson(sampleMetadataText);
+
+    if (parsed.error) {
+      setPreviewResult(parsed.error);
+      return;
+    }
+
+    if (selectedNode.data.nodeTypeKey === 'if') {
+      const outputBranch = evaluateIfNodePreview(parsed.value, selectedNode.data.config || {});
+      setPreviewResult(`IF output branch: ${outputBranch}`);
+      return;
+    }
+
+    if (selectedNode.data.nodeTypeKey === 'switch') {
+      const outputBranch = evaluateSwitchNodePreview(parsed.value, selectedNode.data.config || {});
+      setPreviewResult(`SWITCH output branch: ${outputBranch}`);
+      return;
+    }
+
+    if (selectedNode.data.nodeTypeKey === 'set_value') {
+      const nextMetadata = applySetValuePreview(parsed.value, selectedNode.data.config || {});
+      setPreviewResult(`SET value output metadata: ${JSON.stringify(nextMetadata)}`);
+      return;
+    }
+
+    setPreviewResult('Preview is available for IF, SWITCH, and Set Value nodes.');
+  }
+
+  function renderConditionEditor(node) {
+    const config = node.data.config || {};
+    const rules = config.rules || [];
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> Document and metadata
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> True branch or False branch
+        </p>
+        <label htmlFor="if-logic">Rule connector</label>
+        <br />
+        <select
+          id="if-logic"
+          value={config.logic || 'AND'}
+          onChange={(event) => {
+            const nextLogic = event.target.value;
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              logic: nextLogic
+            }));
+          }}
+        >
+          <option value="AND">AND</option>
+          <option value="OR">OR</option>
+        </select>
+
+        {rules.map((rule, index) => (
+          <div key={`if-rule-${index}`} style={{ marginTop: 8, borderTop: '1px dashed #cbd5e1' }}>
+            <p>Rule {index + 1}</p>
+            <input
+              type="text"
+              placeholder="metadata path e.g. totalAmount"
+              value={rule.fieldPath || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextRules = [...(current.rules || [])];
+                  nextRules[index] = { ...nextRules[index], fieldPath: nextValue };
+                  return { ...current, rules: nextRules };
+                });
+              }}
+            />
+            <select
+              value={rule.dataType || 'string'}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextRules = [...(current.rules || [])];
+                  nextRules[index] = { ...nextRules[index], dataType: nextValue };
+                  return { ...current, rules: nextRules };
+                });
+              }}
+            >
+              <option value="string">String</option>
+              <option value="number">Number</option>
+              <option value="datetime">Date Time</option>
+              <option value="boolean">Boolean</option>
+            </select>
+            <select
+              value={rule.operator || 'equals'}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextRules = [...(current.rules || [])];
+                  nextRules[index] = { ...nextRules[index], operator: nextValue };
+                  return { ...current, rules: nextRules };
+                });
+              }}
+            >
+              <option value="equals">Equals</option>
+              <option value="not_equals">Not Equals</option>
+              <option value="contains">Contains</option>
+              <option value="not_contains">Not Contains</option>
+              <option value="greater_than">Greater Than</option>
+              <option value="less_than">Less Than</option>
+              <option value="greater_or_equal">Greater Or Equal</option>
+              <option value="less_or_equal">Less Or Equal</option>
+              <option value="is_true">Is True</option>
+              <option value="is_false">Is False</option>
+              <option value="exists">Exists</option>
+              <option value="not_exists">Not Exists</option>
+            </select>
+            <input
+              type="text"
+              placeholder="comparison value"
+              value={rule.value || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextRules = [...(current.rules || [])];
+                  nextRules[index] = { ...nextRules[index], value: nextValue };
+                  return { ...current, rules: nextRules };
+                });
+              }}
+            />
+          </div>
+        ))}
+      </>
+    );
+  }
+
+  function renderSwitchEditor(node) {
+    const config = node.data.config || {};
+    const switchCases = config.cases || [];
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> Document and metadata
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> First true case, otherwise fallback
+        </p>
+        {switchCases.map((switchCase, index) => (
+          <div key={switchCase.id} style={{ marginTop: 8, borderTop: '1px dashed #cbd5e1' }}>
+            <p>{switchCase.label || `Case ${index + 1}`}</p>
+            <input
+              type="text"
+              placeholder="case label"
+              value={switchCase.label || ''}
+              onChange={(event) => {
+                const nextLabel = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextCases = [...(current.cases || [])];
+                  nextCases[index] = { ...nextCases[index], label: nextLabel };
+                  return { ...current, cases: nextCases };
+                });
+              }}
+            />
+            <input
+              type="text"
+              placeholder="metadata path"
+              value={switchCase.rule?.fieldPath || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextCases = [...(current.cases || [])];
+                  nextCases[index] = {
+                    ...nextCases[index],
+                    rule: { ...(nextCases[index].rule || {}), fieldPath: nextValue }
+                  };
+                  return { ...current, cases: nextCases };
+                });
+              }}
+            />
+            <select
+              value={switchCase.rule?.dataType || 'string'}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextCases = [...(current.cases || [])];
+                  nextCases[index] = {
+                    ...nextCases[index],
+                    rule: { ...(nextCases[index].rule || {}), dataType: nextValue }
+                  };
+                  return { ...current, cases: nextCases };
+                });
+              }}
+            >
+              <option value="string">String</option>
+              <option value="number">Number</option>
+              <option value="datetime">Date Time</option>
+              <option value="boolean">Boolean</option>
+            </select>
+            <select
+              value={switchCase.rule?.operator || 'equals'}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextCases = [...(current.cases || [])];
+                  nextCases[index] = {
+                    ...nextCases[index],
+                    rule: { ...(nextCases[index].rule || {}), operator: nextValue }
+                  };
+                  return { ...current, cases: nextCases };
+                });
+              }}
+            >
+              <option value="equals">Equals</option>
+              <option value="not_equals">Not Equals</option>
+              <option value="contains">Contains</option>
+              <option value="not_contains">Not Contains</option>
+              <option value="greater_than">Greater Than</option>
+              <option value="less_than">Less Than</option>
+              <option value="greater_or_equal">Greater Or Equal</option>
+              <option value="less_or_equal">Less Or Equal</option>
+              <option value="is_true">Is True</option>
+              <option value="is_false">Is False</option>
+            </select>
+            <input
+              type="text"
+              placeholder="comparison value"
+              value={switchCase.rule?.value || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextCases = [...(current.cases || [])];
+                  nextCases[index] = {
+                    ...nextCases[index],
+                    rule: { ...(nextCases[index].rule || {}), value: nextValue }
+                  };
+                  return { ...current, cases: nextCases };
+                });
+              }}
+            />
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            updateNodeConfig(node.id, (current) => {
+              const currentCases = current.cases || [];
+
+              if (currentCases.length >= 10) {
+                return current;
+              }
+
+              const nextCaseNumber = currentCases.length + 1;
+
+              return {
+                ...current,
+                cases: [
+                  ...currentCases,
+                  {
+                    id: `case_${nextCaseNumber}`,
+                    label: `Case ${nextCaseNumber}`,
+                    rule: { fieldPath: '', dataType: 'string', operator: 'equals', value: '' }
+                  }
+                ]
+              };
+            });
+          }}
+        >
+          Add Case
+        </button>
+      </>
+    );
+  }
+
+  function renderSetValueEditor(node) {
+    const config = node.data.config || {};
+    const assignments = config.assignments || [];
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> Document and metadata
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> Enriched metadata
+        </p>
+        {assignments.map((assignment, index) => (
+          <div key={`assignment-${index}`} style={{ marginTop: 8, borderTop: '1px dashed #cbd5e1' }}>
+            <p>Assignment {index + 1}</p>
+            <input
+              type="text"
+              placeholder="field path"
+              value={assignment.fieldPath || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextAssignments = [...(current.assignments || [])];
+                  nextAssignments[index] = { ...nextAssignments[index], fieldPath: nextValue };
+                  return { ...current, assignments: nextAssignments };
+                });
+              }}
+            />
+            <input
+              type="text"
+              placeholder="value"
+              value={assignment.value || ''}
+              onChange={(event) => {
+                const nextValue = event.target.value;
+                updateNodeConfig(node.id, (current) => {
+                  const nextAssignments = [...(current.assignments || [])];
+                  nextAssignments[index] = { ...nextAssignments[index], value: nextValue };
+                  return { ...current, assignments: nextAssignments };
+                });
+              }}
+            />
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => {
+            updateNodeConfig(node.id, (current) => ({
+              ...current,
+              assignments: [...(current.assignments || []), { fieldPath: '', value: '' }]
+            }));
+          }}
+        >
+          Add Assignment
+        </button>
+      </>
+    );
+  }
+
+  function renderNodeMenu(node) {
+    if (node.data.nodeTypeKey === 'manual_upload') {
+      return (
+        <>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Input:</strong> Drag and drop file
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            <strong>Output:</strong> Document
+          </p>
+          <p style={{ marginBottom: 4 }}>
+            Accepted file types: {(node.data.config?.acceptedFileTypes || []).join(', ')}
+          </p>
+        </>
+      );
+    }
+
+    if (node.data.nodeTypeKey === 'if') {
+      return renderConditionEditor(node);
+    }
+
+    if (node.data.nodeTypeKey === 'switch') {
+      return renderSwitchEditor(node);
+    }
+
+    if (node.data.nodeTypeKey === 'set_value') {
+      return renderSetValueEditor(node);
+    }
+
+    return (
+      <>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Input:</strong> {BASE_MENU_TEXT.input}
+        </p>
+        <p style={{ marginBottom: 4 }}>
+          <strong>Output:</strong> {BASE_MENU_TEXT.output}
+        </p>
+      </>
+    );
   }
 
   return (
@@ -301,15 +731,23 @@ function WorkflowCanvasContent({ workflowId }) {
             <p style={{ marginBottom: 4 }}>
               <strong>Name:</strong> {selectedNode.data.label}
             </p>
-            <p style={{ marginBottom: 4 }}>
-              <strong>Input:</strong> Document and metadata
-            </p>
-            <p style={{ marginBottom: 8 }}>
-              <strong>Output:</strong> Node-specific output signal/document
-            </p>
             <button type="button" onClick={() => renameNode(selectedNode.id)}>
               Rename Node
             </button>
+            {renderNodeMenu(selectedNode)}
+            <hr />
+            <label htmlFor="sample-metadata">Sample metadata (JSON)</label>
+            <textarea
+              id="sample-metadata"
+              rows={6}
+              value={sampleMetadataText}
+              onChange={(event) => setSampleMetadataText(event.target.value)}
+              style={{ width: '100%' }}
+            />
+            <button type="button" onClick={runPreview}>
+              Run Preview
+            </button>
+            {previewResult ? <p>{previewResult}</p> : null}
           </div>
         ) : (
           <p>Click a node to view its menu.</p>
