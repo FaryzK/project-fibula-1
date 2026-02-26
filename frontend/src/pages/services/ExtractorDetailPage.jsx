@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   addExtractorFeedbackWithFile,
@@ -22,6 +24,8 @@ const STEPS = [
   { key: 'schema', label: 'Schema', description: 'Define header fields and table structures.' },
   { key: 'hold', label: 'Hold Rules', description: 'Set mandatory fields and hold behavior.' }
 ];
+
+GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 export function ExtractorDetailPage() {
   const { extractorId } = useParams();
@@ -55,6 +59,13 @@ export function ExtractorDetailPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
   const [usedFeedbackIds, setUsedFeedbackIds] = useState([]);
+  const [documentUrl, setDocumentUrl] = useState('');
+  const [documentType, setDocumentType] = useState('');
+  const [documentPages, setDocumentPages] = useState(1);
+  const [documentPage, setDocumentPage] = useState(1);
+  const [isDocumentLoading, setIsDocumentLoading] = useState(false);
+  const pdfRef = useRef(null);
+  const pdfDocRef = useRef(null);
 
   useEffect(() => {
     if (isNew) {
@@ -582,6 +593,82 @@ export function ExtractorDetailPage() {
     setUsedFeedbackIds([]);
   }, [uploadedDocument]);
 
+  useEffect(() => {
+    if (!uploadedDocument) {
+      if (documentUrl) {
+        URL.revokeObjectURL(documentUrl);
+      }
+      setDocumentUrl('');
+      setDocumentType('');
+      setDocumentPages(1);
+      setDocumentPage(1);
+      pdfDocRef.current = null;
+      return;
+    }
+
+    const nextUrl = URL.createObjectURL(uploadedDocument);
+    setDocumentUrl(nextUrl);
+    setDocumentType(uploadedDocument.type || '');
+    setDocumentPages(1);
+    setDocumentPage(1);
+
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [uploadedDocument]);
+
+  useEffect(() => {
+    if (!documentUrl || documentType !== 'application/pdf') {
+      pdfDocRef.current = null;
+      return;
+    }
+
+    let isCancelled = false;
+    setIsDocumentLoading(true);
+
+    async function loadPdf() {
+      try {
+        const pdf = await getDocument(documentUrl).promise;
+        if (isCancelled) {
+          return;
+        }
+        pdfDocRef.current = pdf;
+        setDocumentPages(pdf.numPages || 1);
+      } catch (_error) {
+        pdfDocRef.current = null;
+      } finally {
+        if (!isCancelled) {
+          setIsDocumentLoading(false);
+        }
+      }
+    }
+
+    loadPdf();
+    return () => {
+      isCancelled = true;
+    };
+  }, [documentUrl, documentType]);
+
+  useEffect(() => {
+    async function renderPdfPage() {
+      if (!pdfDocRef.current || !pdfRef.current) {
+        return;
+      }
+      const pageNumber = Math.min(Math.max(documentPage, 1), documentPages || 1);
+      const page = await pdfDocRef.current.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1.25 });
+      const canvas = pdfRef.current;
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport }).promise;
+    }
+
+    if (documentType === 'application/pdf') {
+      renderPdfPage();
+    }
+  }, [documentPage, documentPages, documentType]);
+
   return (
     <div className="panel-stack">
       <header className="section-header">
@@ -971,6 +1058,41 @@ export function ExtractorDetailPage() {
                     onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
                   />
                 </div>
+                {documentUrl ? (
+                  <div className="document-preview">
+                    {documentType === 'application/pdf' ? (
+                      <>
+                        {isDocumentLoading ? <p className="muted-text">Loading document…</p> : null}
+                        <canvas ref={pdfRef} className="pdf-canvas" />
+                        <div className="page-controls">
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setDocumentPage((current) => Math.max(1, current - 1))}
+                            disabled={documentPage <= 1}
+                          >
+                            Prev
+                          </button>
+                          <span className="page-indicator">
+                            Page {documentPage} of {documentPages}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() =>
+                              setDocumentPage((current) => Math.min(documentPages, current + 1))
+                            }
+                            disabled={documentPage >= documentPages}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <img src={documentUrl} alt="Uploaded document preview" />
+                    )}
+                  </div>
+                ) : null}
 
                 {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
                 {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}

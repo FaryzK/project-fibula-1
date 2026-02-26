@@ -782,6 +782,40 @@ hr {
   margin-bottom: 0.8rem;
 }
 
+.document-preview {
+  border: 1px solid var(--line);
+  background: #ffffff;
+  padding: 0.8rem;
+  border-radius: var(--radius-sm);
+  margin-top: 0.6rem;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.document-preview img {
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.pdf-canvas {
+  width: 100%;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+}
+
+.page-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.page-indicator {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
 .card-warning {
   border-color: #f1d4a6;
   background: transparent;
