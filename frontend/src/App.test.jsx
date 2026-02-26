@@ -18,6 +18,7 @@ describe('App', () => {
       session: null,
       isLoading: false,
       hydrateSession: async () => {},
+      startAuthListener: () => () => {},
       fetchProfile: async () => ({ profile: null, error: null }),
       updateProfile: async () => ({ profile: null, error: null }),
       signInWithGoogle: async () => ({ error: null }),

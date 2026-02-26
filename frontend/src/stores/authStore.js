@@ -19,6 +19,13 @@ function persistAccessToken(session) {
   window.localStorage.removeItem(ACCESS_TOKEN_STORAGE_KEY);
 }
 
+function authStateFromSession(session) {
+  return {
+    user: session?.user || null,
+    session: session || null
+  };
+}
+
 export const useAuthStore = create((set) => ({
   user: null,
   session: null,
@@ -45,10 +52,30 @@ export const useAuthStore = create((set) => ({
     persistAccessToken(session);
     set({
       isLoading: false,
-      user: session?.user || null,
-      session,
+      ...authStateFromSession(session),
       profile: null
     });
+  },
+
+  startAuthListener: () => {
+    if (!supabase) {
+      return () => {};
+    }
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      persistAccessToken(session);
+      set({
+        isLoading: false,
+        ...authStateFromSession(session),
+        ...(session ? {} : { profile: null })
+      });
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   },
 
   signInWithGoogle: async () => {
@@ -56,8 +83,12 @@ export const useAuthStore = create((set) => ({
       return { error: new Error('Supabase client is not configured') };
     }
 
+    const redirectTo =
+      typeof window !== 'undefined' ? `${window.location.origin}/app` : undefined;
+
     return supabase.auth.signInWithOAuth({
-      provider: 'google'
+      provider: 'google',
+      ...(redirectTo ? { options: { redirectTo } } : {})
     });
   },
 
