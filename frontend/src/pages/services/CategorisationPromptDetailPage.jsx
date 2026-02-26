@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   createCategorisationPrompt,
+  deleteCategorisationPrompt,
   listCategorisationPrompts,
   updateCategorisationPrompt
 } from '../../services/configServiceNodesApi';
@@ -19,6 +20,7 @@ export function CategorisationPromptDetailPage() {
   const [nodeUsages, setNodeUsages] = useState([]);
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [errorText, setErrorText] = useState('');
   const [statusText, setStatusText] = useState('');
 
@@ -101,18 +103,40 @@ export function CategorisationPromptDetailPage() {
     }
   }
 
+  async function handleDelete() {
+    if (isNew) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setErrorText('');
+    setStatusText('');
+
+    try {
+      await deleteCategorisationPrompt(promptId);
+      navigate('/app/services/document-categorisation');
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to delete categorisation prompt');
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="panel-stack">
       <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Service Setup</span>
-          <h1>{isNew ? 'New Categorisation Prompt' : 'Categorisation Prompt'}</h1>
-          <p className="section-subtitle">Define labels used to categorise incoming documents.</p>
+        <div className="section-title-row">
+          <Link
+            className="icon-btn-neutral icon-btn-lg"
+            to="/app/services/document-categorisation"
+            aria-label="Back to categorisation prompts"
+          >
+            ←
+          </Link>
+          <div>
+            <h1>{promptName.trim() || (isNew ? 'New Categorisation Prompt' : 'Categorisation Prompt')}</h1>
+          </div>
         </div>
         <div className="section-actions">
-          <Link className="btn btn-ghost" to="/app/services/document-categorisation">
-            Back to Prompts
-          </Link>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Prompt'}
           </button>
@@ -176,6 +200,14 @@ export function CategorisationPromptDetailPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            ) : null}
+
+            {!isNew ? (
+              <div className="panel-actions align-right">
+                <button type="button" className="btn-danger" onClick={handleDelete} disabled={isDeleting}>
+                  {isDeleting ? 'Deleting...' : 'Delete Prompt'}
+                </button>
               </div>
             ) : null}
           </section>

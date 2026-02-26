@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteSplittingPrompt, listSplittingPrompts } from '../../services/configServiceNodesApi';
+import { listSplittingPrompts } from '../../services/configServiceNodesApi';
 
 export function SplittingPromptsListPage() {
   const [prompts, setPrompts] = useState([]);
@@ -25,17 +25,6 @@ export function SplittingPromptsListPage() {
     loadPrompts();
   }, []);
 
-  async function handleDelete(promptId) {
-    setErrorText('');
-
-    try {
-      await deleteSplittingPrompt(promptId);
-      await loadPrompts();
-    } catch (error) {
-      setErrorText(error?.response?.data?.error || 'Failed to delete splitting prompt');
-    }
-  }
-
   return (
     <div className="panel-stack">
       <header className="section-header">
@@ -56,20 +45,17 @@ export function SplittingPromptsListPage() {
       {!isLoading && prompts.length === 0 ? <p>No splitting prompts yet.</p> : null}
 
       {!isLoading && prompts.length > 0 ? (
-        <div className="card-grid">
+        <div className="service-list">
           {prompts.map((prompt) => (
-            <div className="card-item" key={prompt.id}>
-              <div className="card-title">{prompt.name}</div>
-              <div className="card-meta">{prompt.instructionsPreview || '(No instructions)'}</div>
-              <div className="card-meta">Used by nodes: {prompt.nodeUsages?.length || 0}</div>
-              <div className="panel-actions">
-                <Link className="btn btn-outline" to={`/app/services/document-splitting/${prompt.id}`}>
-                  Manage
-                </Link>
-                <button type="button" className="btn-danger" onClick={() => handleDelete(prompt.id)}>
-                  Delete
-                </button>
-              </div>
+            <div className="service-row" key={prompt.id}>
+              <div className="card-title">{prompt.name || 'Untitled Splitting Prompt'}</div>
+              <Link
+                className="icon-btn-neutral"
+                to={`/app/services/document-splitting/${prompt.id}`}
+                aria-label="Edit splitting prompt"
+              >
+                ✎
+              </Link>
             </div>
           ))}
         </div>
