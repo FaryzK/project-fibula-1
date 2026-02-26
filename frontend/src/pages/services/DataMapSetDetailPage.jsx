@@ -263,45 +263,78 @@ export function DataMapSetDetailPage() {
           {headers.length === 0 ? <p>No headers yet.</p> : null}
 
           {headers.length > 0 ? (
-            <div className="table-editor">
-              <div className="table-row table-head">
-                {headers.map((header, index) => (
-                  <div className="table-cell" key={`header-${index}`}>
-                    <input
-                      type="text"
-                      value={header}
-                      onChange={(event) => updateHeader(index, event.target.value)}
-                    />
-                    <button type="button" className="btn btn-ghost" onClick={() => removeHeader(index)}>
-                      Remove
-                    </button>
-                  </div>
-                ))}
+            <>
+              <p className="muted-text">
+                Each row is one record. Example: with 2 headers, each record has 2 values in one row.
+              </p>
+              <div className="table-scroll">
+                <table className="data-map-table">
+                  <thead>
+                    <tr>
+                      {headers.map((header, index) => (
+                        <th key={`header-${index}`}>
+                          <div className="header-cell-editor">
+                            <input
+                              type="text"
+                              value={header}
+                              onChange={(event) => updateHeader(index, event.target.value)}
+                              className="table-input"
+                            />
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              onClick={() => removeHeader(index)}
+                              aria-label="Remove header"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </th>
+                      ))}
+                      <th className="action-col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.length === 0 ? (
+                      <tr>
+                        <td colSpan={headers.length + 1}>
+                          <span className="muted-text">No records yet.</span>
+                        </td>
+                      </tr>
+                    ) : (
+                      records.map((row, rowIndex) => (
+                        <tr key={`row-${rowIndex}`}>
+                          {headers.map((_, columnIndex) => (
+                            <td key={`cell-${rowIndex}-${columnIndex}`}>
+                              <input
+                                type="text"
+                                value={row[columnIndex] || ''}
+                                onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)}
+                                className="table-input"
+                              />
+                            </td>
+                          ))}
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => removeRow(rowIndex)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-              {records.map((row, rowIndex) => (
-                <div className="table-row" key={`row-${rowIndex}`}>
-                  {headers.map((_, columnIndex) => (
-                    <div className="table-cell" key={`cell-${rowIndex}-${columnIndex}`}>
-                      <input
-                        type="text"
-                        value={row[columnIndex] || ''}
-                        onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)}
-                      />
-                    </div>
-                  ))}
-                  <div className="table-cell">
-                    <button type="button" className="btn btn-ghost" onClick={() => removeRow(rowIndex)}>
-                      Remove Row
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            </>
           ) : null}
 
           <div className="panel-actions">
             <button type="button" className="btn btn-outline" onClick={addRow} disabled={headers.length === 0}>
-              Add Row
+              Add Record
             </button>
           </div>
         </section>
