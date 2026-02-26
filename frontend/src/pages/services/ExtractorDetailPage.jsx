@@ -40,6 +40,7 @@ export function ExtractorDetailPage() {
   const [statusText, setStatusText] = useState('');
   const [activeTab, setActiveTab] = useState('schema');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isEditing, setIsEditing] = useState(isNew);
   const [feedbacks, setFeedbacks] = useState([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState('');
   const [feedbackTargetType, setFeedbackTargetType] = useState('header');
@@ -72,6 +73,7 @@ export function ExtractorDetailPage() {
         setSchema(found.schema || DEFAULT_SCHEMA);
         setHoldAllDocuments(Boolean(found.holdAllDocuments));
         setFeedbacks(found.feedbacks || []);
+        setIsEditing(false);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load extractor');
       } finally {
@@ -356,11 +358,24 @@ export function ExtractorDetailPage() {
       setExtractorMeta(extractor);
       setFeedbacks(extractor.feedbacks || []);
       setStatusText('Extractor updated');
+      setIsEditing(false);
     } catch (error) {
       setErrorText(error?.response?.data?.error || 'Failed to save extractor');
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function handleCancelEdit() {
+    if (extractorMeta) {
+      setName(extractorMeta.name || '');
+      setSchema(extractorMeta.schema || DEFAULT_SCHEMA);
+      setHoldAllDocuments(Boolean(extractorMeta.holdAllDocuments));
+      setFeedbacks(extractorMeta.feedbacks || []);
+    }
+    setErrorText('');
+    setStatusText('');
+    setIsEditing(false);
   }
 
   async function handleDeleteExtractor() {
@@ -413,6 +428,8 @@ export function ExtractorDetailPage() {
   const requiredHeaderCount = (schema.headerFields || []).filter((item) => item.required).length;
   const requiredTableCount = (schema.tableTypes || []).filter((item) => item.required).length;
   const heldDocuments = extractorMeta?.heldDocuments || emptyArray;
+  const canEditSchema = isNew || isEditing;
+  const titleText = name.trim() || (isNew ? 'New Extractor' : 'Untitled Extractor');
   const formatTimestamp = (value) => {
     if (!value) {
       return 'Unknown';
@@ -456,17 +473,40 @@ export function ExtractorDetailPage() {
   return (
     <div className="panel-stack">
       <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Service Setup</span>
-          <h1>{isNew ? 'New Extractor' : 'Extractor Setup'}</h1>
-          <p className="section-subtitle">
-            Define schema and extraction rules before attaching this extractor to a workflow.
-          </p>
+        <div className="section-title-row">
+          <Link className="icon-btn-neutral" to="/app/services/extractors" aria-label="Back to extractors">
+            ←
+          </Link>
+          <div>
+            {isNew ? <h1>{titleText}</h1> : null}
+            {!isNew && !isEditing ? <h1>{titleText}</h1> : null}
+            {!isNew && isEditing ? (
+              <input
+                className="title-input"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Extractor name"
+              />
+            ) : null}
+          </div>
+          {!isNew && !isEditing ? (
+            <button
+              type="button"
+              className="icon-btn-neutral"
+              onClick={() => setIsEditing(true)}
+              aria-label="Edit schema"
+            >
+              ✎
+            </button>
+          ) : null}
         </div>
         <div className="section-actions">
-          <Link className="btn btn-ghost" to="/app/services/extractors">
-            Back to Extractors
-          </Link>
+          {!isNew && isEditing ? (
+            <button type="button" className="btn btn-ghost" onClick={handleCancelEdit}>
+              Cancel
+            </button>
+          ) : null}
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : isNew ? 'Create Extractor' : 'Save Extractor'}
           </button>
@@ -548,9 +588,11 @@ export function ExtractorDetailPage() {
                     <h2>Header Fields</h2>
                     <p>Define the fields extracted from the document header.</p>
                   </div>
-                  <button type="button" className="btn btn-outline" onClick={addHeaderField}>
-                    Add Field
-                  </button>
+                  {canEditSchema ? (
+                    <button type="button" className="btn btn-outline" onClick={addHeaderField}>
+                      Add Field
+                    </button>
+                  ) : null}
                 </div>
 
                 {(schema.headerFields || []).length === 0 ? <p>No header fields yet.</p> : null}
@@ -565,8 +607,10 @@ export function ExtractorDetailPage() {
                     <button
                       type="button"
                       className="drag-handle"
-                      draggable
-                      onDragStart={(event) => setDragPayload(event, { type: 'header', index })}
+                      draggable={canEditSchema}
+                      onDragStart={
+                        canEditSchema ? (event) => setDragPayload(event, { type: 'header', index }) : undefined
+                      }
                       aria-label="Reorder header field"
                     >
                       ⋮⋮
@@ -578,6 +622,7 @@ export function ExtractorDetailPage() {
                         onChange={(event) => updateHeaderField(index, 'fieldName', event.target.value)}
                         placeholder="Field name"
                         aria-label="Field name"
+                        disabled={!canEditSchema}
                       />
                       <input
                         type="text"
@@ -585,6 +630,7 @@ export function ExtractorDetailPage() {
                         onChange={(event) => updateHeaderField(index, 'description', event.target.value)}
                         placeholder="Description"
                         aria-label="Field description"
+                        disabled={!canEditSchema}
                       />
                     </div>
                     <label className="toggle">
@@ -592,18 +638,21 @@ export function ExtractorDetailPage() {
                         type="checkbox"
                         checked={Boolean(field.required)}
                         onChange={(event) => updateHeaderField(index, 'required', event.target.checked)}
+                        disabled={!canEditSchema}
                       />
                       <span className="toggle-track" />
                       <span className="toggle-label">Required</span>
                     </label>
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      onClick={() => removeHeaderField(index)}
-                      aria-label="Remove field"
-                    >
-                      ×
-                    </button>
+                    {canEditSchema ? (
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => removeHeaderField(index)}
+                        aria-label="Remove field"
+                      >
+                        ×
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </section>
@@ -614,9 +663,11 @@ export function ExtractorDetailPage() {
                     <h2>Table Types</h2>
                     <p>Define line item tables that should be extracted.</p>
                   </div>
-                  <button type="button" className="btn btn-outline" onClick={addTableType}>
-                    Add Table Type
-                  </button>
+                  {canEditSchema ? (
+                    <button type="button" className="btn btn-outline" onClick={addTableType}>
+                      Add Table Type
+                    </button>
+                  ) : null}
                 </div>
 
                 {(schema.tableTypes || []).length === 0 ? <p>No table types yet.</p> : null}
@@ -632,8 +683,10 @@ export function ExtractorDetailPage() {
                       <button
                         type="button"
                         className="drag-handle"
-                        draggable
-                        onDragStart={(event) => setDragPayload(event, { type: 'table', index })}
+                        draggable={canEditSchema}
+                        onDragStart={
+                          canEditSchema ? (event) => setDragPayload(event, { type: 'table', index }) : undefined
+                        }
                         aria-label="Reorder table type"
                       >
                         ⋮⋮
@@ -645,6 +698,7 @@ export function ExtractorDetailPage() {
                           onChange={(event) => updateTableType(index, 'tableName', event.target.value)}
                           placeholder="Table name"
                           aria-label="Table name"
+                          disabled={!canEditSchema}
                         />
                         <input
                           type="text"
@@ -652,6 +706,7 @@ export function ExtractorDetailPage() {
                           onChange={(event) => updateTableType(index, 'description', event.target.value)}
                           placeholder="Description"
                           aria-label="Table description"
+                          disabled={!canEditSchema}
                         />
                       </div>
                       <label className="toggle">
@@ -659,25 +714,30 @@ export function ExtractorDetailPage() {
                           type="checkbox"
                           checked={Boolean(table.required)}
                           onChange={(event) => updateTableType(index, 'required', event.target.checked)}
+                          disabled={!canEditSchema}
                         />
                         <span className="toggle-track" />
                         <span className="toggle-label">Required</span>
                       </label>
-                      <button
-                        type="button"
-                        className="icon-btn"
-                        onClick={() => removeTableType(index)}
-                        aria-label="Remove table"
-                      >
-                        ×
-                      </button>
+                      {canEditSchema ? (
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          onClick={() => removeTableType(index)}
+                          aria-label="Remove table"
+                        >
+                          ×
+                        </button>
+                      ) : null}
                     </div>
 
-                    <div className="panel-actions align-right">
-                      <button type="button" className="btn btn-outline" onClick={() => addColumn(index)}>
-                        Add Column
-                      </button>
-                    </div>
+                    {canEditSchema ? (
+                      <div className="panel-actions align-right">
+                        <button type="button" className="btn btn-outline" onClick={() => addColumn(index)}>
+                          Add Column
+                        </button>
+                      </div>
+                    ) : null}
 
                     {(table.columns || []).map((column, columnIndex) => (
                       <div
@@ -689,9 +749,16 @@ export function ExtractorDetailPage() {
                         <button
                           type="button"
                           className="drag-handle"
-                          draggable
-                          onDragStart={(event) =>
-                            setDragPayload(event, { type: 'column', tableIndex: index, index: columnIndex })
+                          draggable={canEditSchema}
+                          onDragStart={
+                            canEditSchema
+                              ? (event) =>
+                                  setDragPayload(event, {
+                                    type: 'column',
+                                    tableIndex: index,
+                                    index: columnIndex
+                                  })
+                              : undefined
                           }
                           aria-label="Reorder column"
                         >
@@ -706,6 +773,7 @@ export function ExtractorDetailPage() {
                             }
                             placeholder="Column name"
                             aria-label="Column name"
+                            disabled={!canEditSchema}
                           />
                           <input
                             type="text"
@@ -715,17 +783,20 @@ export function ExtractorDetailPage() {
                             }
                             placeholder="Description"
                             aria-label="Column description"
+                            disabled={!canEditSchema}
                           />
                         </div>
                         <div />
-                        <button
-                          type="button"
-                          className="icon-btn"
-                          onClick={() => removeColumn(index, columnIndex)}
-                          aria-label="Remove column"
-                        >
-                          ×
-                        </button>
+                        {canEditSchema ? (
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => removeColumn(index, columnIndex)}
+                            aria-label="Remove column"
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </div>
                     ))}
                   </div>
