@@ -68,8 +68,12 @@ export function ExtractorsListPage() {
               </div>
               <div className="card-meta">Used by nodes: {extractor.nodeUsages?.length || 0}</div>
               <div className="panel-actions">
-                <Link className="btn btn-outline" to={`/app/services/extractors/${extractor.id}`}>
-                  Manage
+                <Link
+                  className="icon-btn-neutral"
+                  to={`/app/services/extractors/${extractor.id}`}
+                  aria-label="Edit extractor"
+                >
+                  ✎
                 </Link>
                 <button type="button" className="btn-danger" onClick={() => handleDelete(extractor.id)}>
                   Delete

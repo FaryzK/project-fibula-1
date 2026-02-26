@@ -543,6 +543,24 @@ hr {
   background: rgba(180, 35, 59, 0.08);
 }
 
+.icon-btn-neutral {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+}
+
+.icon-btn-neutral:hover {
+  background: rgba(17, 24, 39, 0.08);
+  color: var(--ink);
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;
