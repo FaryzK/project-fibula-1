@@ -26,6 +26,7 @@ export function ExtractorDetailPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const isNew = !extractorId;
+  const emptyArray = useMemo(() => [], []);
 
   const [activeStep, setActiveStep] = useState(STEPS[0].key);
   const [name, setName] = useState('');
@@ -385,7 +386,7 @@ export function ExtractorDetailPage() {
 
   const requiredHeaderCount = (schema.headerFields || []).filter((item) => item.required).length;
   const requiredTableCount = (schema.tableTypes || []).filter((item) => item.required).length;
-  const heldDocuments = extractorMeta?.heldDocuments || [];
+  const heldDocuments = extractorMeta?.heldDocuments || emptyArray;
   const formatTimestamp = (value) => {
     if (!value) {
       return 'Unknown';
@@ -409,9 +410,21 @@ export function ExtractorDetailPage() {
   };
 
   useEffect(() => {
-    setSelectedHeldDocs((current) =>
-      current.filter((id) => heldDocuments.some((item) => item.document?.id === id))
-    );
+    setSelectedHeldDocs((current) => {
+      if (!heldDocuments.length) {
+        return current.length ? [] : current;
+      }
+
+      const next = current.filter((id) =>
+        heldDocuments.some((item) => item.document?.id === id)
+      );
+
+      if (next.length === current.length && next.every((id, index) => id === current[index])) {
+        return current;
+      }
+
+      return next;
+    });
   }, [heldDocuments]);
 
   return (
