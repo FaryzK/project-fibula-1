@@ -22,6 +22,11 @@ const {
   updateExtractor,
   updateSplittingPrompt
 } = require('../services/config-service-nodes.service');
+const {
+  addTrainingFeedbackWithDocument,
+  runExtractorInference
+} = require('../services/extractor-inference.service');
+const { deleteFeedbackDocument } = require('../services/storage.service');
 
 async function listSplittingPromptsController(req, res, next) {
   try {
@@ -266,7 +271,21 @@ async function deleteExtractorController(req, res, next) {
 
 async function addExtractorFeedbackController(req, res, next) {
   try {
-    const feedback = await addExtractorFeedback(req.user.id, req.params.extractorId, req.body || {});
+    let feedback = null;
+
+    if (req.file) {
+      feedback = await addTrainingFeedbackWithDocument({
+        userId: req.user.id,
+        extractorId: req.params.extractorId,
+        file: req.file,
+        targetType: req.body?.targetType || null,
+        targetPath: req.body?.targetPath || null,
+        feedbackText: req.body?.feedbackText || '',
+        documentId: req.body?.documentId || null
+      });
+    } else {
+      feedback = await addExtractorFeedback(req.user.id, req.params.extractorId, req.body || {});
+    }
 
     if (!feedback) {
       return res.status(404).json({ error: 'Extractor not found' });
@@ -294,7 +313,36 @@ async function deleteExtractorFeedbackController(req, res, next) {
       return res.status(404).json({ error: 'Feedback not found' });
     }
 
+    if (result.feedback?.storagePath) {
+      await deleteFeedbackDocument({
+        bucket: result.feedback.storageBucket,
+        path: result.feedback.storagePath
+      });
+    }
+
     return res.status(200).json({ success: true });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function runExtractorInferenceController(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Document file is required' });
+    }
+
+    const result = await runExtractorInference({
+      userId: req.user.id,
+      extractorId: req.params.extractorId,
+      file: req.file
+    });
+
+    if (!result) {
+      return res.status(404).json({ error: 'Extractor not found' });
+    }
+
+    return res.status(200).json(result);
   } catch (error) {
     return next(error);
   }
@@ -355,6 +403,7 @@ module.exports = {
   listSplittingPromptsController,
   sendOutFromExtractorController,
   sendOutFromFolderController,
+  runExtractorInferenceController,
   updateCategorisationPromptController,
   updateDocumentFolderController,
   updateExtractorController,

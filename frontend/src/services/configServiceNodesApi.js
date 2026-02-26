@@ -77,6 +77,32 @@ export async function addExtractorFeedback(extractorId, payload) {
   return response.data.feedback;
 }
 
+export async function addExtractorFeedbackWithFile(extractorId, payload, file) {
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+  }
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+    formData.append(key, value);
+  });
+
+  const response = await api.post(`/extractors/${extractorId}/feedbacks`, formData);
+  return response.data.feedback;
+}
+
+export async function runExtractorInference(extractorId, file) {
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+  }
+
+  const response = await api.post(`/extractors/${extractorId}/extractions`, formData);
+  return response.data;
+}
+
 export async function deleteExtractorFeedback(extractorId, feedbackId) {
   await api.delete(`/extractors/${extractorId}/feedbacks/${feedbackId}`);
 }

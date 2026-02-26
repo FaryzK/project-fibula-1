@@ -608,6 +608,18 @@ async function listExtractors(userId) {
   }));
 }
 
+async function getExtractorById(userId, extractorId) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+    return existing;
+  }
+
+  return getEntity(TABLES.extractors, userId, extractorId);
+}
+
 async function updateExtractor(userId, extractorId, payload) {
   if (useMemoryStore()) {
     const existing = extractorsById.get(extractorId);
@@ -702,8 +714,13 @@ async function addExtractorFeedback(userId, extractorId, payload) {
     }
 
     const feedback = {
-      id: randomUUID(),
+      id: payload.id || randomUUID(),
       documentId: payload.documentId || null,
+      document: payload.document || null,
+      documentSummary: payload.documentSummary || null,
+      embedding: payload.embedding || null,
+      storageBucket: payload.storageBucket || null,
+      storagePath: payload.storagePath || null,
       targetType: payload.targetType || null,
       targetPath: payload.targetPath || null,
       feedbackText: payload.feedbackText || '',
@@ -727,8 +744,13 @@ async function addExtractorFeedback(userId, extractorId, payload) {
   }
 
   const feedback = {
-    id: randomUUID(),
+    id: payload.id || randomUUID(),
     documentId: payload.documentId || null,
+    document: payload.document || null,
+    documentSummary: payload.documentSummary || null,
+    embedding: payload.embedding || null,
+    storageBucket: payload.storageBucket || null,
+    storagePath: payload.storagePath || null,
     targetType: payload.targetType || null,
     targetPath: payload.targetPath || null,
     feedbackText: payload.feedbackText || '',
@@ -762,6 +784,7 @@ async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
     }
 
     const feedbacks = existing.feedbacks || [];
+    const removedFeedback = feedbacks.find((item) => item.id === feedbackId) || null;
     const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
 
     if (nextFeedbacks.length === feedbacks.length) {
@@ -775,7 +798,7 @@ async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
     };
 
     extractorsById.set(extractorId, updated);
-    return { success: true };
+    return { success: true, feedback: removedFeedback };
   }
 
   const existing = await getEntity(TABLES.extractors, userId, extractorId);
@@ -785,6 +808,7 @@ async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
   }
 
   const feedbacks = existing.feedbacks || [];
+  const removedFeedback = feedbacks.find((item) => item.id === feedbackId) || null;
   const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
 
   if (nextFeedbacks.length === feedbacks.length) {
@@ -806,7 +830,7 @@ async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
     new Date().toISOString()
   );
 
-  return { success: true };
+  return { success: true, feedback: removedFeedback };
 }
 
 async function holdDocumentInExtractor(userId, extractorId, payload) {
@@ -952,6 +976,7 @@ module.exports = {
   deleteCategorisationPrompt,
   deleteDocumentFolder,
   deleteExtractor,
+  getExtractorById,
   deleteSplittingPrompt,
   holdDocumentInExtractor,
   holdDocumentInFolder,
