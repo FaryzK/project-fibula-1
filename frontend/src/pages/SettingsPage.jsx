@@ -40,8 +40,8 @@ export function SettingsPage() {
       <header className="section-header">
         <div>
           <span className="section-eyebrow">Account</span>
-          <h1>User Settings</h1>
-          <p className="section-subtitle">Manage your display profile and user preferences.</p>
+          <h1>Profile & Preferences</h1>
+          <p className="section-subtitle">Manage your display profile and workspace preferences.</p>
         </div>
       </header>
 

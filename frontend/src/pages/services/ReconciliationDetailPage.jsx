@@ -9,6 +9,7 @@ import {
   updateReconciliationRule
 } from '../../services/dataMapperReconciliationApi';
 import { listExtractors } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 function createVariation(index) {
   return {
@@ -31,6 +32,8 @@ export function ReconciliationDetailPage() {
   const [variations, setVariations] = useState([createVariation(0)]);
   const [matchingSets, setMatchingSets] = useState([]);
   const [extractors, setExtractors] = useState([]);
+  const [nodeUsages, setNodeUsages] = useState([]);
+  const [activeSection, setActiveSection] = useState('basics');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -66,6 +69,7 @@ export function ReconciliationDetailPage() {
           setVariations((found.variations && found.variations.length) ? found.variations : [createVariation(0)]);
           const sets = await listMatchingSets(ruleId);
           setMatchingSets(sets || []);
+          setNodeUsages(found.nodeUsages || []);
         }
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load reconciliation rule');
@@ -242,7 +246,25 @@ export function ReconciliationDetailPage() {
 
       {!isLoading ? (
         <>
-          <section className="panel">
+          <div className="segmented-control" role="tablist">
+            {[
+              { key: 'basics', label: 'Basics' },
+              { key: 'variations', label: 'Variations' },
+              { key: 'monitoring', label: 'Monitoring' }
+            ].map((section) => (
+              <button
+                key={section.key}
+                type="button"
+                aria-pressed={activeSection === section.key}
+                onClick={() => setActiveSection(section.key)}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
+
+          {activeSection === 'basics' ? (
+            <section className="panel">
             <div className="panel-header">
               <div>
                 <h2>Rule Basics</h2>
@@ -289,8 +311,10 @@ export function ReconciliationDetailPage() {
               ))}
             </div>
           </section>
+          ) : null}
 
-          <section className="panel">
+          {activeSection === 'variations' ? (
+            <section className="panel">
             <div className="panel-header">
               <div>
                 <h2>Variations</h2>
@@ -571,7 +595,7 @@ export function ReconciliationDetailPage() {
                       }
                     >
                       <option value="absolute">Absolute</option>
-                      <option value="percent">Percent</option>
+                      <option value="percentage">Percentage</option>
                     </select>
 
                     <label>Tolerance value</label>
@@ -598,42 +622,67 @@ export function ReconciliationDetailPage() {
               </div>
             ))}
           </section>
+          ) : null}
 
-          {!isNew ? (
-            <section className="panel">
-              <div className="panel-header">
-                <div>
-                  <h2>Matching Sets</h2>
-                  <p>Monitor reconciliation outcomes for this rule.</p>
-                </div>
-                <button type="button" className="btn btn-outline" onClick={refreshMatchingSets}>
-                  Refresh
-                </button>
-              </div>
-
-              {matchingSets.length === 0 ? <p>No matching sets yet.</p> : null}
-
-              {matchingSets.length > 0 ? (
-                <div className="card-grid">
-                  {matchingSets.map((matchingSet) => (
-                    <div className="card-item" key={matchingSet.id}>
-                      <div className="card-title">{matchingSet.id}</div>
-                      <div className="card-meta">Status: {matchingSet.status}</div>
-                      <div className="card-meta">Variation index: {matchingSet.variationIndex}</div>
-                      <div className="card-meta">Documents: {matchingSet.documents?.length || 0}</div>
-                      <div className="panel-actions">
-                        <button type="button" className="btn btn-outline" onClick={() => handleForceReconcile(matchingSet.id)}>
-                          Force Reconcile
-                        </button>
-                        <button type="button" className="btn-danger" onClick={() => handleReject(matchingSet.id)}>
-                          Reject
-                        </button>
-                      </div>
+          {activeSection === 'monitoring' ? (
+            <>
+              {!isNew ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Matching Sets</h2>
+                      <p>Monitor reconciliation outcomes for this rule.</p>
                     </div>
-                  ))}
-                </div>
+                    <button type="button" className="btn btn-outline" onClick={refreshMatchingSets}>
+                      Refresh
+                    </button>
+                  </div>
+
+                  {matchingSets.length === 0 ? <p>No matching sets yet.</p> : null}
+
+                  {matchingSets.length > 0 ? (
+                    <div className="card-grid">
+                      {matchingSets.map((matchingSet) => (
+                        <div className="card-item" key={matchingSet.id}>
+                          <div className="card-title">{matchingSet.id}</div>
+                          <div className="card-meta">Status: {matchingSet.status}</div>
+                          <div className="card-meta">Variation index: {matchingSet.variationIndex}</div>
+                          <div className="card-meta">Documents: {matchingSet.documents?.length || 0}</div>
+                          <div className="panel-actions">
+                            <button
+                              type="button"
+                              className="btn btn-outline"
+                              onClick={() => handleForceReconcile(matchingSet.id)}
+                            >
+                              Force Reconcile
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-danger"
+                              onClick={() => handleReject(matchingSet.id)}
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </section>
               ) : null}
-            </section>
+
+              {!isNew ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Workflow Usage</h2>
+                      <p>Jump to the nodes using this reconciliation rule.</p>
+                    </div>
+                  </div>
+                  <UsageList usages={nodeUsages} />
+                </section>
+              ) : null}
+            </>
           ) : null}
         </>
       ) : null}

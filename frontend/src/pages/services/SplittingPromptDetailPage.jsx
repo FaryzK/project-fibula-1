@@ -5,6 +5,7 @@ import {
   listSplittingPrompts,
   updateSplittingPrompt
 } from '../../services/configServiceNodesApi';
+import { UsageList } from '../../components/UsageList';
 
 export function SplittingPromptDetailPage() {
   const { promptId } = useParams();
@@ -13,6 +14,7 @@ export function SplittingPromptDetailPage() {
 
   const [name, setName] = useState('');
   const [instructions, setInstructions] = useState('');
+  const [nodeUsages, setNodeUsages] = useState([]);
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [errorText, setErrorText] = useState('');
@@ -38,6 +40,7 @@ export function SplittingPromptDetailPage() {
 
         setName(found.name || '');
         setInstructions(found.instructions || '');
+        setNodeUsages(found.nodeUsages || []);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load splitting prompt');
       } finally {
@@ -98,31 +101,45 @@ export function SplittingPromptDetailPage() {
       {isLoading ? <p>Loading prompt...</p> : null}
 
       {!isLoading ? (
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <h2>Prompt Details</h2>
-              <p>Provide clear splitting instructions for the model.</p>
+        <>
+          <section className="panel">
+            <div className="panel-header">
+              <div>
+                <h2>Prompt Details</h2>
+                <p>Provide clear splitting instructions for the model.</p>
+              </div>
             </div>
-          </div>
-          <div className="form-grid">
-            <label htmlFor="splitting-prompt-name">Prompt name</label>
-            <input
-              id="splitting-prompt-name"
-              type="text"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
+            <div className="form-grid">
+              <label htmlFor="splitting-prompt-name">Prompt name</label>
+              <input
+                id="splitting-prompt-name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
 
-            <label htmlFor="splitting-prompt-instructions">Instructions</label>
-            <textarea
-              id="splitting-prompt-instructions"
-              rows={6}
-              value={instructions}
-              onChange={(event) => setInstructions(event.target.value)}
-            />
-          </div>
-        </section>
+              <label htmlFor="splitting-prompt-instructions">Instructions</label>
+              <textarea
+                id="splitting-prompt-instructions"
+                rows={6}
+                value={instructions}
+                onChange={(event) => setInstructions(event.target.value)}
+              />
+            </div>
+          </section>
+
+          {!isNew ? (
+            <section className="panel">
+              <div className="panel-header">
+                <div>
+                  <h2>Workflow Usage</h2>
+                  <p>Jump to the nodes using this splitting prompt.</p>
+                </div>
+              </div>
+              <UsageList usages={nodeUsages} />
+            </section>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
