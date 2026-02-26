@@ -55,51 +55,6 @@ async function generateTextEmbedding(text) {
   return response.data?.[0]?.embedding || null;
 }
 
-function buildExtractionSchema(schema) {
-  return {
-    type: 'object',
-    additionalProperties: false,
-    required: ['headerFields', 'tableTypes'],
-    properties: {
-      headerFields: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['fieldName', 'value'],
-          properties: {
-            fieldName: { type: 'string' },
-            value: { type: ['string', 'null'] }
-          }
-        }
-      },
-      tableTypes: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['tableName', 'columns'],
-          properties: {
-            tableName: { type: 'string' },
-            columns: {
-              type: 'array',
-              items: {
-                type: 'object',
-                additionalProperties: false,
-                required: ['columnName', 'value'],
-                properties: {
-                  columnName: { type: 'string' },
-                  value: { type: ['string', 'null'] }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-}
-
 function formatSchemaInstructions(schema) {
   const headerFields = (schema.headerFields || [])
     .map((field) => `- ${field.fieldName}: ${field.description || 'No description'}`)
@@ -132,7 +87,7 @@ async function runExtraction({ buffer, mimeType, schema, feedbacks }) {
   const openai = getOpenAIClient();
   const prompt = `You are extracting structured data from a document.\n\nSchema:\n${formatSchemaInstructions(
     schema
-  )}\n\nFeedback to apply:\n${formatFeedbackContext(feedbacks)}\n\nReturn JSON that matches the schema. Use null if a value is missing.`;
+  )}\n\nFeedback to apply:\n${formatFeedbackContext(feedbacks)}\n\nReturn JSON with this exact shape:\n{\n  "headerFields": [{"fieldName": "", "value": ""}],\n  "tableTypes": [{"tableName": "", "columns": [{"columnName": "", "value": ""}]}]\n}\nUse null if a value is missing.`;
 
   const response = await openai.responses.create({
     model: process.env.OPENAI_VLM_MODEL || 'gpt-4.1-mini',
@@ -144,13 +99,7 @@ async function runExtraction({ buffer, mimeType, schema, feedbacks }) {
           { type: 'input_image', image_url: toDataUrl(buffer, mimeType) }
         ]
       }
-    ],
-    format: {
-      type: 'json_schema',
-      name: 'extractor_output',
-      schema: buildExtractionSchema(schema),
-      strict: true
-    }
+    ]
   });
 
   const raw = response.output_text || response.output?.[0]?.content?.[0]?.text || '';
