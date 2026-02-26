@@ -58,6 +58,7 @@ export function ExtractorDetailPage() {
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
   const [activeFeedbackGroupId, setActiveFeedbackGroupId] = useState('');
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [modalTarget, setModalTarget] = useState(null);
   const [modalFeedbackText, setModalFeedbackText] = useState('');
   const [modalFeedbackError, setModalFeedbackError] = useState('');
@@ -309,6 +310,90 @@ export function ExtractorDetailPage() {
     });
   }
 
+  function addPendingFeedbackEntry(payload) {
+    const now = new Date().toISOString();
+    const pendingItemId = `pending-item-${Date.now()}`;
+    const pendingItem = {
+      id: pendingItemId,
+      targetType: payload.targetType,
+      targetPath: payload.targetPath,
+      feedbackText: payload.feedbackText,
+      createdAt: now,
+      isPending: true
+    };
+
+    if (activeFeedbackGroupId) {
+      setFeedbackGroups((current) =>
+        current.map((group) => {
+          if (group.id !== activeFeedbackGroupId) {
+            return group;
+          }
+
+          return {
+            ...group,
+            feedbackItems: [pendingItem, ...(group.feedbackItems || [])]
+          };
+        })
+      );
+
+      return {
+        mode: 'existing',
+        groupId: activeFeedbackGroupId,
+        itemId: pendingItemId
+      };
+    }
+
+    const pendingGroupId = `pending-group-${Date.now()}`;
+    const pendingGroup = {
+      id: pendingGroupId,
+      documentId: payload.documentId || uploadedDocument?.name || 'Uploaded document',
+      document: uploadedDocument
+        ? {
+            fileName: uploadedDocument.name || null,
+            mimeType: uploadedDocument.type || null,
+            size: uploadedDocument.size || null
+          }
+        : null,
+      feedbackItems: [pendingItem],
+      createdAt: now,
+      updatedAt: now,
+      isPending: true
+    };
+
+    setFeedbackGroups((current) => [pendingGroup, ...current]);
+
+    return {
+      mode: 'new_group',
+      groupId: pendingGroupId,
+      itemId: pendingItemId
+    };
+  }
+
+  function clearPendingFeedbackEntry(pendingEntry) {
+    if (!pendingEntry) {
+      return;
+    }
+
+    setFeedbackGroups((current) => {
+      if (pendingEntry.mode === 'new_group') {
+        return current.filter((group) => group.id !== pendingEntry.groupId);
+      }
+
+      return current.map((group) => {
+        if (group.id !== pendingEntry.groupId) {
+          return group;
+        }
+
+        return {
+          ...group,
+          feedbackItems: (group.feedbackItems || []).filter(
+            (item) => item.id !== pendingEntry.itemId
+          )
+        };
+      });
+    });
+  }
+
   function buildGroupedTables(tableTypes, schemaTables) {
     const groups = new Map();
     const schemaColumns = new Map();
@@ -448,9 +533,26 @@ export function ExtractorDetailPage() {
       return;
     }
 
+    if (isSubmittingFeedback) {
+      return;
+    }
+
+    const payload = {
+      documentId: feedbackDocumentId.trim() || null,
+      targetType: modalTarget.type,
+      targetPath: modalTarget.path.trim(),
+      feedbackText: modalFeedbackText.trim()
+    };
+    const targetSnapshot = { ...modalTarget };
+    const selectedSnapshot = { type: modalTarget.type, path: modalTarget.path.trim() };
+
     setFeedbackError('');
-    setFeedbackStatus('');
+    setFeedbackStatus('Saving feedback...');
     setModalFeedbackError('');
+    setIsSubmittingFeedback(true);
+    setIsFeedbackModalOpen(false);
+    setModalFeedbackText('');
+    const pendingEntry = addPendingFeedbackEntry(payload);
 
     try {
       let feedbackGroup = null;
@@ -458,18 +560,18 @@ export function ExtractorDetailPage() {
       if (activeFeedbackGroupId) {
         feedbackGroup = await addExtractorFeedback(extractorId, {
           feedbackGroupId: activeFeedbackGroupId,
-          targetType: modalTarget.type,
-          targetPath: modalTarget.path.trim(),
-          feedbackText: modalFeedbackText.trim()
+          targetType: payload.targetType,
+          targetPath: payload.targetPath,
+          feedbackText: payload.feedbackText
         });
       } else {
         feedbackGroup = await addExtractorFeedbackWithFile(
           extractorId,
           {
-            documentId: feedbackDocumentId.trim() || null,
-            targetType: modalTarget.type,
-            targetPath: modalTarget.path.trim(),
-            feedbackText: modalFeedbackText.trim()
+            documentId: payload.documentId,
+            targetType: payload.targetType,
+            targetPath: payload.targetPath,
+            feedbackText: payload.feedbackText
           },
           uploadedDocument
         );
@@ -478,20 +580,31 @@ export function ExtractorDetailPage() {
         }
       }
 
+      clearPendingFeedbackEntry(pendingEntry);
       upsertFeedbackGroup(feedbackGroup);
       setFeedbackStatus('Feedback recorded for this document');
       setSelectedPreviewTarget(null);
-      setIsFeedbackModalOpen(false);
-      setModalFeedbackText('');
+      setModalTarget(null);
       setModalFeedbackError('');
     } catch (error) {
       const message = error?.response?.data?.error || 'Failed to add feedback';
+      clearPendingFeedbackEntry(pendingEntry);
+      setIsFeedbackModalOpen(true);
+      setModalTarget(targetSnapshot);
+      setSelectedPreviewTarget(selectedSnapshot);
+      setModalFeedbackText(payload.feedbackText);
       setModalFeedbackError(message);
+      setFeedbackStatus('');
       setFeedbackError(message);
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   }
 
   function handleCloseFeedbackModal() {
+    if (isSubmittingFeedback) {
+      return;
+    }
     setIsFeedbackModalOpen(false);
     setModalTarget(null);
     setModalFeedbackText('');
@@ -763,6 +876,7 @@ export function ExtractorDetailPage() {
     setModalFeedbackError('');
     setUseNativePdfView(false);
     setPdfRenderVersion(0);
+    setIsSubmittingFeedback(false);
   }, [uploadedDocument]);
 
   useEffect(() => {
@@ -1496,50 +1610,60 @@ export function ExtractorDetailPage() {
                       <span>Feedback</span>
                       <span></span>
                     </div>
-                    {feedbackGroups.map((feedback) => (
-                      <div className="data-row four-col" key={feedback.id}>
-                        <div className="data-cell">
-                          <span className="card-title">
-                            {feedback.documentId || feedback.document?.fileName || 'Document'}
-                          </span>
-                          <span className="data-meta">
-                            {feedback.createdAt ? formatTimestamp(feedback.createdAt) : ''}
-                          </span>
-                          <span className="data-meta">
-                            {(feedback.feedbackItems || []).length} feedback item(s)
-                          </span>
-                        </div>
-                        <div className="data-cell">
-                          <div className="stacked-meta">
-                            {(feedback.feedbackItems || []).map((item) => (
-                              <span className="data-meta" key={item.id}>
-                                {item.targetType || 'Target'}
-                                {item.targetPath ? ` · ${item.targetPath}` : ''}
-                              </span>
-                            ))}
+                    {feedbackGroups.map((feedback) => {
+                      const pendingItems = (feedback.feedbackItems || []).filter((item) => item.isPending);
+                      const isPendingGroup = Boolean(feedback.isPending) || pendingItems.length > 0;
+                      return (
+                        <div
+                          className={`data-row four-col ${isPendingGroup ? 'data-row-pending' : ''}`}
+                          key={feedback.id}
+                        >
+                          <div className="data-cell">
+                            <span className="card-title">
+                              {feedback.documentId || feedback.document?.fileName || 'Document'}
+                            </span>
+                            <span className="data-meta">
+                              {feedback.createdAt ? formatTimestamp(feedback.createdAt) : ''}
+                            </span>
+                            <span className="data-meta">
+                              {(feedback.feedbackItems || []).length} feedback item(s)
+                            </span>
+                            {isPendingGroup ? <span className="tag tag-warning">Saving entry...</span> : null}
+                          </div>
+                          <div className="data-cell">
+                            <div className="stacked-meta">
+                              {(feedback.feedbackItems || []).map((item) => (
+                                <span className="data-meta" key={item.id}>
+                                  {item.targetType || 'Target'}
+                                  {item.targetPath ? ` · ${item.targetPath}` : ''}
+                                  {item.isPending ? ' (saving...)' : ''}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="data-cell">
+                            <div className="stacked-meta">
+                              {(feedback.feedbackItems || []).map((item) => (
+                                <span className="data-meta" key={`${item.id}-text`}>
+                                  {item.feedbackText || '—'}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="data-cell">
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              onClick={() => handleDeleteFeedback(feedback.id)}
+                              aria-label="Delete feedback"
+                              disabled={isPendingGroup}
+                            >
+                              ×
+                            </button>
                           </div>
                         </div>
-                        <div className="data-cell">
-                          <div className="stacked-meta">
-                            {(feedback.feedbackItems || []).map((item) => (
-                              <span className="data-meta" key={`${item.id}-text`}>
-                                {item.feedbackText || '—'}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="data-cell">
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => handleDeleteFeedback(feedback.id)}
-                            aria-label="Delete feedback"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </section>
@@ -1754,11 +1878,21 @@ export function ExtractorDetailPage() {
                   {modalFeedbackError ? <p className="status-error">{modalFeedbackError}</p> : null}
                 </div>
                 <div className="feedback-dialog-actions">
-                  <button type="button" className="btn btn-ghost" onClick={handleCloseFeedbackModal}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={handleCloseFeedbackModal}
+                    disabled={isSubmittingFeedback}
+                  >
                     Cancel
                   </button>
-                  <button type="button" className="btn-primary" onClick={handleAddFeedback}>
-                    Save Feedback
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleAddFeedback}
+                    disabled={isSubmittingFeedback}
+                  >
+                    {isSubmittingFeedback ? 'Saving...' : 'Save Feedback'}
                   </button>
                 </div>
               </div>

@@ -567,6 +567,11 @@ hr {
   background: rgba(180, 35, 59, 0.08);
 }
 
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .icon-btn-neutral {
   border: none;
   background: transparent;
@@ -699,6 +704,10 @@ hr {
   border-bottom: 1px solid var(--line);
 }
 
+.data-row-pending {
+  background: #f8fafc;
+}
+
 .data-cell {
   display: flex;
   flex-direction: column;
@@ -722,13 +731,15 @@ hr {
   margin-top: 0.8rem;
 }
 
-.service-list {
+.service-list,
+.extractor-list {
   display: grid;
   margin-top: 0.6rem;
   border-top: 1px solid var(--line);
 }
 
-.service-row {
+.service-row,
+.extractor-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -738,7 +749,8 @@ hr {
   background: transparent;
 }
 
-.service-row:hover {
+.service-row:hover,
+.extractor-row:hover {
   background: #f8fafc;
 }
 
