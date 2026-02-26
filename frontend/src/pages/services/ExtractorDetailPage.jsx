@@ -69,6 +69,7 @@ export function ExtractorDetailPage() {
   const [isDocumentLoading, setIsDocumentLoading] = useState(false);
   const [documentError, setDocumentError] = useState('');
   const [useNativePdfView, setUseNativePdfView] = useState(false);
+  const [pdfRenderVersion, setPdfRenderVersion] = useState(0);
   const pdfRef = useRef(null);
   const pdfDocRef = useRef(null);
 
@@ -761,6 +762,7 @@ export function ExtractorDetailPage() {
     setModalFeedbackText('');
     setModalFeedbackError('');
     setUseNativePdfView(false);
+    setPdfRenderVersion(0);
   }, [uploadedDocument]);
 
   useEffect(() => {
@@ -783,6 +785,7 @@ export function ExtractorDetailPage() {
     setDocumentPage(1);
     setDocumentError('');
     setUseNativePdfView(false);
+    setPdfRenderVersion(0);
     if (nextType !== 'application/pdf') {
       setIsDocumentLoading(false);
       pdfDocRef.current = null;
@@ -818,6 +821,7 @@ export function ExtractorDetailPage() {
         pdfDocRef.current = pdf;
         setDocumentPages(pdf.numPages || 1);
         setDocumentPage(1);
+        setPdfRenderVersion((current) => current + 1);
       } catch (_error) {
         pdfDocRef.current = null;
         setDocumentError('Unable to preview PDF');
@@ -844,6 +848,9 @@ export function ExtractorDetailPage() {
       const viewport = page.getViewport({ scale: 1.25 });
       const canvas = pdfRef.current;
       const context = canvas.getContext('2d');
+      if (!context) {
+        return;
+      }
       canvas.height = viewport.height;
       canvas.width = viewport.width;
       context.clearRect(0, 0, canvas.width, canvas.height);
@@ -853,7 +860,7 @@ export function ExtractorDetailPage() {
     if (documentType === 'application/pdf') {
       renderPdfPage();
     }
-  }, [documentPage, documentPages, documentType]);
+  }, [documentPage, documentPages, documentType, pdfRenderVersion]);
 
   return (
     <div className="panel-stack">
