@@ -58,6 +58,7 @@ export function ExtractorDetailPage() {
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
   const [activeFeedbackGroupId, setActiveFeedbackGroupId] = useState('');
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isSubmittingFeedback, setIsSubmittingFeedback] = useState(false);
   const [modalTarget, setModalTarget] = useState(null);
   const [modalFeedbackText, setModalFeedbackText] = useState('');
   const [modalFeedbackError, setModalFeedbackError] = useState('');
@@ -448,9 +449,25 @@ export function ExtractorDetailPage() {
       return;
     }
 
+    if (isSubmittingFeedback) {
+      return;
+    }
+
+    const payload = {
+      documentId: feedbackDocumentId.trim() || null,
+      targetType: modalTarget.type,
+      targetPath: modalTarget.path.trim(),
+      feedbackText: modalFeedbackText.trim()
+    };
+    const targetSnapshot = { ...modalTarget };
+    const selectedSnapshot = { type: modalTarget.type, path: modalTarget.path.trim() };
+
     setFeedbackError('');
-    setFeedbackStatus('');
+    setFeedbackStatus('Saving feedback...');
     setModalFeedbackError('');
+    setIsSubmittingFeedback(true);
+    setIsFeedbackModalOpen(false);
+    setModalFeedbackText('');
 
     try {
       let feedbackGroup = null;
@@ -458,18 +475,18 @@ export function ExtractorDetailPage() {
       if (activeFeedbackGroupId) {
         feedbackGroup = await addExtractorFeedback(extractorId, {
           feedbackGroupId: activeFeedbackGroupId,
-          targetType: modalTarget.type,
-          targetPath: modalTarget.path.trim(),
-          feedbackText: modalFeedbackText.trim()
+          targetType: payload.targetType,
+          targetPath: payload.targetPath,
+          feedbackText: payload.feedbackText
         });
       } else {
         feedbackGroup = await addExtractorFeedbackWithFile(
           extractorId,
           {
-            documentId: feedbackDocumentId.trim() || null,
-            targetType: modalTarget.type,
-            targetPath: modalTarget.path.trim(),
-            feedbackText: modalFeedbackText.trim()
+            documentId: payload.documentId,
+            targetType: payload.targetType,
+            targetPath: payload.targetPath,
+            feedbackText: payload.feedbackText
           },
           uploadedDocument
         );
@@ -481,17 +498,26 @@ export function ExtractorDetailPage() {
       upsertFeedbackGroup(feedbackGroup);
       setFeedbackStatus('Feedback recorded for this document');
       setSelectedPreviewTarget(null);
-      setIsFeedbackModalOpen(false);
-      setModalFeedbackText('');
+      setModalTarget(null);
       setModalFeedbackError('');
     } catch (error) {
       const message = error?.response?.data?.error || 'Failed to add feedback';
+      setIsFeedbackModalOpen(true);
+      setModalTarget(targetSnapshot);
+      setSelectedPreviewTarget(selectedSnapshot);
+      setModalFeedbackText(payload.feedbackText);
       setModalFeedbackError(message);
+      setFeedbackStatus('');
       setFeedbackError(message);
+    } finally {
+      setIsSubmittingFeedback(false);
     }
   }
 
   function handleCloseFeedbackModal() {
+    if (isSubmittingFeedback) {
+      return;
+    }
     setIsFeedbackModalOpen(false);
     setModalTarget(null);
     setModalFeedbackText('');
@@ -763,6 +789,7 @@ export function ExtractorDetailPage() {
     setModalFeedbackError('');
     setUseNativePdfView(false);
     setPdfRenderVersion(0);
+    setIsSubmittingFeedback(false);
   }, [uploadedDocument]);
 
   useEffect(() => {
@@ -1754,11 +1781,21 @@ export function ExtractorDetailPage() {
                   {modalFeedbackError ? <p className="status-error">{modalFeedbackError}</p> : null}
                 </div>
                 <div className="feedback-dialog-actions">
-                  <button type="button" className="btn btn-ghost" onClick={handleCloseFeedbackModal}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={handleCloseFeedbackModal}
+                    disabled={isSubmittingFeedback}
+                  >
                     Cancel
                   </button>
-                  <button type="button" className="btn-primary" onClick={handleAddFeedback}>
-                    Save Feedback
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleAddFeedback}
+                    disabled={isSubmittingFeedback}
+                  >
+                    {isSubmittingFeedback ? 'Saving...' : 'Save Feedback'}
                   </button>
                 </div>
               </div>
