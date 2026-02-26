@@ -10,11 +10,19 @@ import { useAuthStore } from './stores/authStore';
 export function AppRoutes() {
   const user = useAuthStore((state) => state.user);
   const hydrateSession = useAuthStore((state) => state.hydrateSession);
+  const startAuthListener = useAuthStore((state) => state.startAuthListener);
   const fetchProfile = useAuthStore((state) => state.fetchProfile);
 
   useEffect(() => {
     hydrateSession();
   }, [hydrateSession]);
+
+  useEffect(() => {
+    const unsubscribe = startAuthListener();
+    return () => {
+      unsubscribe();
+    };
+  }, [startAuthListener]);
 
   useEffect(() => {
     if (!user) {
