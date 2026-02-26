@@ -1,6 +1,10 @@
 const { executeWebhookNode } = require('./node-execution.service');
 
 function normalizeExecutionMode(mode) {
+  if (mode === undefined || mode === null || mode === '') {
+    return 'published';
+  }
+
   const normalized = String(mode || 'published').toLowerCase();
 
   if (normalized === 'drop-only') {
@@ -11,11 +15,20 @@ function normalizeExecutionMode(mode) {
     return 'run-to-node';
   }
 
-  return 'published';
+  const error = new Error('Invalid webhook execution mode');
+  error.statusCode = 400;
+  throw error;
 }
 
 function receiveWebhookEvent({ workflowId, nodeId, mode, targetNodeId, body }) {
   const executionMode = normalizeExecutionMode(mode);
+
+  if (executionMode === 'run-to-node' && !targetNodeId) {
+    const error = new Error('targetNodeId is required for run-to-node mode');
+    error.statusCode = 400;
+    throw error;
+  }
+
   const output = executeWebhookNode({
     webhookPayload: {
       body

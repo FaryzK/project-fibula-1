@@ -35,3 +35,11 @@ Feature behavior is defined in `/requirements`. Read relevant requirement docs b
 - `project-fibula-1` frontend (Vite): `http://localhost:5174`
 - `project-fibula-1` backend (Express): `http://localhost:4000`
 - Frontend API base URL should be `VITE_API_BASE_URL=http://localhost:4000/api`
+
+## Deployment Readiness
+- Health endpoint: `GET /api/health` (liveness)
+- Readiness endpoint: `GET /api/health/readiness` (config readiness)
+- Required backend env vars for readiness:
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_ROLE_KEY`
+  - `SUPABASE_JWT_SECRET`

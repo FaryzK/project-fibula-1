@@ -20,32 +20,31 @@ const {
 } = require('../controllers/data-mapper-reconciliation.controller');
 
 const router = express.Router();
+router.get('/data-map-sets', requireAuth, listDataMapSetsController);
+router.post('/data-map-sets', requireAuth, createDataMapSetController);
+router.patch('/data-map-sets/:setId', requireAuth, updateDataMapSetController);
+router.delete('/data-map-sets/:setId', requireAuth, deleteDataMapSetController);
 
-router.use(requireAuth);
+router.get('/data-map-rules', requireAuth, listDataMapRulesController);
+router.post('/data-map-rules', requireAuth, createDataMapRuleController);
+router.patch('/data-map-rules/:ruleId', requireAuth, updateDataMapRuleController);
+router.delete('/data-map-rules/:ruleId', requireAuth, deleteDataMapRuleController);
 
-router.get('/data-map-sets', listDataMapSetsController);
-router.post('/data-map-sets', createDataMapSetController);
-router.patch('/data-map-sets/:setId', updateDataMapSetController);
-router.delete('/data-map-sets/:setId', deleteDataMapSetController);
+router.get('/reconciliation-rules', requireAuth, listReconciliationRulesController);
+router.post('/reconciliation-rules', requireAuth, createReconciliationRuleController);
+router.patch('/reconciliation-rules/:ruleId', requireAuth, updateReconciliationRuleController);
+router.delete('/reconciliation-rules/:ruleId', requireAuth, deleteReconciliationRuleController);
 
-router.get('/data-map-rules', listDataMapRulesController);
-router.post('/data-map-rules', createDataMapRuleController);
-router.patch('/data-map-rules/:ruleId', updateDataMapRuleController);
-router.delete('/data-map-rules/:ruleId', deleteDataMapRuleController);
-
-router.get('/reconciliation-rules', listReconciliationRulesController);
-router.post('/reconciliation-rules', createReconciliationRuleController);
-router.patch('/reconciliation-rules/:ruleId', updateReconciliationRuleController);
-router.delete('/reconciliation-rules/:ruleId', deleteReconciliationRuleController);
-
-router.get('/reconciliation-rules/:ruleId/matching-sets', listMatchingSetsController);
-router.post('/reconciliation-rules/:ruleId/matching-sets', createMatchingSetController);
+router.get('/reconciliation-rules/:ruleId/matching-sets', requireAuth, listMatchingSetsController);
+router.post('/reconciliation-rules/:ruleId/matching-sets', requireAuth, createMatchingSetController);
 router.post(
   '/reconciliation-rules/:ruleId/matching-sets/:matchingSetId/force-reconcile',
+  requireAuth,
   forceReconcileMatchingSetController
 );
 router.post(
   '/reconciliation-rules/:ruleId/matching-sets/:matchingSetId/reject',
+  requireAuth,
   rejectMatchingSetController
 );
 
