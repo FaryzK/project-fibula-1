@@ -25,6 +25,8 @@ Project execution memory for Project Fibula.
 | Variable | Service | Required | Added In Phase | Documented in `.env.example` |
 |---|---|---|---|---|
 | SUPABASE_JWT_SECRET | Backend | Yes | Phase 8 | Yes |
+| USE_MEMORY_STORE | Backend | Optional | Phase 19 | Yes |
+| PGSSLMODE | Backend | Optional | Phase 19 | Yes |
 
 ## Key Decisions Log
 | Date | Decision | Why | Impact |
@@ -80,6 +82,7 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Rebuilt UI shell with topbar + sidebar navigation, card grids, and refined canvas styling | Codex | Phase 9 |
 | 2026-02-26 | Added Ops dashboard default, service list pages, and guided extractor/data mapper/reconciliation setup flows | Codex | Phase 9 |
 | 2026-02-26 | Added canvas-to-service deep links and service instance selectors in node menus | Codex | Phase 11 |
+| 2026-02-26 | Added Postgres persistence layer for workflows + service config data with auto-created tables and in-memory fallback for tests | Codex | Infra |
 
 ## Update Rule
 After each completed feature/phase PR:

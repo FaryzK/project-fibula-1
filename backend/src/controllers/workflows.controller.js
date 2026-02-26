@@ -5,34 +5,50 @@ const {
   updateWorkflow
 } = require('../services/workflows.service');
 
-function listUserWorkflows(req, res) {
-  const workflows = listWorkflows(req.user.id);
-  return res.status(200).json({ workflows });
-}
-
-function createUserWorkflow(req, res) {
-  const workflow = createWorkflow(req.user.id, req.body || {});
-  return res.status(201).json({ workflow });
-}
-
-function updateUserWorkflow(req, res) {
-  const workflow = updateWorkflow(req.user.id, req.params.workflowId, req.body || {});
-
-  if (!workflow) {
-    return res.status(404).json({ error: 'Workflow not found' });
+async function listUserWorkflows(req, res, next) {
+  try {
+    const workflows = await listWorkflows(req.user.id);
+    return res.status(200).json({ workflows });
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ workflow });
 }
 
-function deleteUserWorkflow(req, res) {
-  const isDeleted = deleteWorkflow(req.user.id, req.params.workflowId);
-
-  if (!isDeleted) {
-    return res.status(404).json({ error: 'Workflow not found' });
+async function createUserWorkflow(req, res, next) {
+  try {
+    const workflow = await createWorkflow(req.user.id, req.body || {});
+    return res.status(201).json({ workflow });
+  } catch (error) {
+    return next(error);
   }
+}
 
-  return res.status(204).send();
+async function updateUserWorkflow(req, res, next) {
+  try {
+    const workflow = await updateWorkflow(req.user.id, req.params.workflowId, req.body || {});
+
+    if (!workflow) {
+      return res.status(404).json({ error: 'Workflow not found' });
+    }
+
+    return res.status(200).json({ workflow });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deleteUserWorkflow(req, res, next) {
+  try {
+    const isDeleted = await deleteWorkflow(req.user.id, req.params.workflowId);
+
+    if (!isDeleted) {
+      return res.status(404).json({ error: 'Workflow not found' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
+  }
 }
 
 module.exports = {

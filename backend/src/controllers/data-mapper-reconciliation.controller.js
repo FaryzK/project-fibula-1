@@ -16,156 +16,220 @@ const {
   updateReconciliationRule
 } = require('../services/data-mapper-reconciliation.service');
 
-function listDataMapSetsController(req, res) {
-  const sets = listDataMapSets(req.user.id);
-  return res.status(200).json({ sets });
-}
-
-function createDataMapSetController(req, res) {
-  const set = createDataMapSet(req.user.id, req.body || {});
-  return res.status(201).json({ set });
-}
-
-function updateDataMapSetController(req, res) {
-  const set = updateDataMapSet(req.user.id, req.params.setId, req.body || {});
-
-  if (!set) {
-    return res.status(404).json({ error: 'Data map set not found' });
+async function listDataMapSetsController(req, res, next) {
+  try {
+    const sets = await listDataMapSets(req.user.id);
+    return res.status(200).json({ sets });
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ set });
 }
 
-function deleteDataMapSetController(req, res) {
-  const result = deleteDataMapSet(req.user.id, req.params.setId);
-
-  if (result.reason === 'not_found') {
-    return res.status(404).json({ error: 'Data map set not found' });
+async function createDataMapSetController(req, res, next) {
+  try {
+    const set = await createDataMapSet(req.user.id, req.body || {});
+    return res.status(201).json({ set });
+  } catch (error) {
+    return next(error);
   }
+}
 
-  if (result.reason === 'in_use') {
-    return res.status(409).json({ error: 'Data map set is in use by a data map rule' });
+async function updateDataMapSetController(req, res, next) {
+  try {
+    const set = await updateDataMapSet(req.user.id, req.params.setId, req.body || {});
+
+    if (!set) {
+      return res.status(404).json({ error: 'Data map set not found' });
+    }
+
+    return res.status(200).json({ set });
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(204).send();
 }
 
-function listDataMapRulesController(req, res) {
-  const rules = listDataMapRules(req.user.id);
-  return res.status(200).json({ rules });
-}
+async function deleteDataMapSetController(req, res, next) {
+  try {
+    const result = await deleteDataMapSet(req.user.id, req.params.setId);
 
-function createDataMapRuleController(req, res) {
-  const rule = createDataMapRule(req.user.id, req.body || {});
-  return res.status(201).json({ rule });
-}
+    if (result.reason === 'not_found') {
+      return res.status(404).json({ error: 'Data map set not found' });
+    }
 
-function updateDataMapRuleController(req, res) {
-  const rule = updateDataMapRule(req.user.id, req.params.ruleId, req.body || {});
+    if (result.reason === 'in_use') {
+      return res.status(409).json({ error: 'Data map set is in use by a data map rule' });
+    }
 
-  if (!rule) {
-    return res.status(404).json({ error: 'Data map rule not found' });
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ rule });
 }
 
-function deleteDataMapRuleController(req, res) {
-  const result = deleteDataMapRule(req.user.id, req.params.ruleId);
-
-  if (result.reason === 'not_found') {
-    return res.status(404).json({ error: 'Data map rule not found' });
+async function listDataMapRulesController(req, res, next) {
+  try {
+    const rules = await listDataMapRules(req.user.id);
+    return res.status(200).json({ rules });
+  } catch (error) {
+    return next(error);
   }
-
-  if (result.reason === 'in_use') {
-    return res.status(409).json({ error: 'Data map rule is in use' });
-  }
-
-  return res.status(204).send();
 }
 
-function listReconciliationRulesController(req, res) {
-  const rules = listReconciliationRules(req.user.id);
-  return res.status(200).json({ rules });
+async function createDataMapRuleController(req, res, next) {
+  try {
+    const rule = await createDataMapRule(req.user.id, req.body || {});
+    return res.status(201).json({ rule });
+  } catch (error) {
+    return next(error);
+  }
 }
 
-function createReconciliationRuleController(req, res) {
-  const rule = createReconciliationRule(req.user.id, req.body || {});
-  return res.status(201).json({ rule });
+async function updateDataMapRuleController(req, res, next) {
+  try {
+    const rule = await updateDataMapRule(req.user.id, req.params.ruleId, req.body || {});
+
+    if (!rule) {
+      return res.status(404).json({ error: 'Data map rule not found' });
+    }
+
+    return res.status(200).json({ rule });
+  } catch (error) {
+    return next(error);
+  }
 }
 
-function updateReconciliationRuleController(req, res) {
-  const rule = updateReconciliationRule(req.user.id, req.params.ruleId, req.body || {});
+async function deleteDataMapRuleController(req, res, next) {
+  try {
+    const result = await deleteDataMapRule(req.user.id, req.params.ruleId);
 
-  if (!rule) {
-    return res.status(404).json({ error: 'Reconciliation rule not found' });
+    if (result.reason === 'not_found') {
+      return res.status(404).json({ error: 'Data map rule not found' });
+    }
+
+    if (result.reason === 'in_use') {
+      return res.status(409).json({ error: 'Data map rule is in use' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ rule });
 }
 
-function deleteReconciliationRuleController(req, res) {
-  const result = deleteReconciliationRule(req.user.id, req.params.ruleId);
-
-  if (result.reason === 'not_found') {
-    return res.status(404).json({ error: 'Reconciliation rule not found' });
+async function listReconciliationRulesController(req, res, next) {
+  try {
+    const rules = await listReconciliationRules(req.user.id);
+    return res.status(200).json({ rules });
+  } catch (error) {
+    return next(error);
   }
-
-  if (result.reason === 'in_use') {
-    return res.status(409).json({ error: 'Reconciliation rule is in use' });
-  }
-
-  return res.status(204).send();
 }
 
-function listMatchingSetsController(req, res) {
-  const matchingSets = listMatchingSets(req.user.id, req.params.ruleId);
-
-  if (!matchingSets) {
-    return res.status(404).json({ error: 'Reconciliation rule not found' });
+async function createReconciliationRuleController(req, res, next) {
+  try {
+    const rule = await createReconciliationRule(req.user.id, req.body || {});
+    return res.status(201).json({ rule });
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ matchingSets });
 }
 
-function createMatchingSetController(req, res) {
-  const matchingSet = createMatchingSet(req.user.id, req.params.ruleId, req.body || {});
+async function updateReconciliationRuleController(req, res, next) {
+  try {
+    const rule = await updateReconciliationRule(req.user.id, req.params.ruleId, req.body || {});
 
-  if (!matchingSet) {
-    return res.status(404).json({ error: 'Reconciliation rule not found' });
+    if (!rule) {
+      return res.status(404).json({ error: 'Reconciliation rule not found' });
+    }
+
+    return res.status(200).json({ rule });
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(201).json({ matchingSet });
 }
 
-function forceReconcileMatchingSetController(req, res) {
-  const matchingSet = updateMatchingSetStatus(
-    req.user.id,
-    req.params.ruleId,
-    req.params.matchingSetId,
-    'force_reconciled'
-  );
+async function deleteReconciliationRuleController(req, res, next) {
+  try {
+    const result = await deleteReconciliationRule(req.user.id, req.params.ruleId);
 
-  if (!matchingSet) {
-    return res.status(404).json({ error: 'Matching set not found' });
+    if (result.reason === 'not_found') {
+      return res.status(404).json({ error: 'Reconciliation rule not found' });
+    }
+
+    if (result.reason === 'in_use') {
+      return res.status(409).json({ error: 'Reconciliation rule is in use' });
+    }
+
+    return res.status(204).send();
+  } catch (error) {
+    return next(error);
   }
-
-  return res.status(200).json({ matchingSet });
 }
 
-function rejectMatchingSetController(req, res) {
-  const matchingSet = updateMatchingSetStatus(
-    req.user.id,
-    req.params.ruleId,
-    req.params.matchingSetId,
-    'rejected'
-  );
+async function listMatchingSetsController(req, res, next) {
+  try {
+    const matchingSets = await listMatchingSets(req.user.id, req.params.ruleId);
 
-  if (!matchingSet) {
-    return res.status(404).json({ error: 'Matching set not found' });
+    if (!matchingSets) {
+      return res.status(404).json({ error: 'Reconciliation rule not found' });
+    }
+
+    return res.status(200).json({ matchingSets });
+  } catch (error) {
+    return next(error);
   }
+}
 
-  return res.status(200).json({ matchingSet });
+async function createMatchingSetController(req, res, next) {
+  try {
+    const matchingSet = await createMatchingSet(req.user.id, req.params.ruleId, req.body || {});
+
+    if (!matchingSet) {
+      return res.status(404).json({ error: 'Reconciliation rule not found' });
+    }
+
+    return res.status(201).json({ matchingSet });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function forceReconcileMatchingSetController(req, res, next) {
+  try {
+    const matchingSet = await updateMatchingSetStatus(
+      req.user.id,
+      req.params.ruleId,
+      req.params.matchingSetId,
+      'force_reconciled'
+    );
+
+    if (!matchingSet) {
+      return res.status(404).json({ error: 'Matching set not found' });
+    }
+
+    return res.status(200).json({ matchingSet });
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function rejectMatchingSetController(req, res, next) {
+  try {
+    const matchingSet = await updateMatchingSetStatus(
+      req.user.id,
+      req.params.ruleId,
+      req.params.matchingSetId,
+      'rejected'
+    );
+
+    if (!matchingSet) {
+      return res.status(404).json({ error: 'Matching set not found' });
+    }
+
+    return res.status(200).json({ matchingSet });
+  } catch (error) {
+    return next(error);
+  }
 }
 
 module.exports = {
