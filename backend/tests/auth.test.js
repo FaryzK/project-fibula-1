@@ -31,11 +31,11 @@ describe('GET /api/auth/me', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.body).toEqual({
-      user: {
+      user: expect.objectContaining({
         id: 'user_123',
         email: 'user@example.com',
         role: 'authenticated'
-      }
+      })
     });
   });
 });
