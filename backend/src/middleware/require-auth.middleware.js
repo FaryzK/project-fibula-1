@@ -1,6 +1,6 @@
 const { verifySupabaseJwt } = require('../services/auth.service');
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
   const [scheme, token] = authHeader.split(' ');
 
@@ -9,7 +9,7 @@ function requireAuth(req, res, next) {
   }
 
   try {
-    const payload = verifySupabaseJwt(token);
+    const payload = await verifySupabaseJwt(token);
     const userMetadata = payload.user_metadata || {};
 
     req.user = {
