@@ -30,7 +30,7 @@ export const useAuthStore = create((set) => ({
   user: null,
   session: null,
   profile: null,
-  isLoading: false,
+  isLoading: true,
 
   hydrateSession: async () => {
     if (!supabase) {
