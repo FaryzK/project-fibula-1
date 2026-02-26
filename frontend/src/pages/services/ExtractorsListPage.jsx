@@ -45,20 +45,17 @@ export function ExtractorsListPage() {
       {!isLoading && extractors.length === 0 ? <p>No extractors yet.</p> : null}
 
       {!isLoading && extractors.length > 0 ? (
-        <div className="card-grid">
+        <div className="extractor-list">
           {extractors.map((extractor) => (
-            <div className="card-item" key={extractor.id}>
-              <div className="card-header">
-                <div className="card-title">{extractor.name}</div>
-                <Link
-                  className="icon-btn-neutral"
-                  to={`/app/services/extractors/${extractor.id}`}
-                  aria-label="Edit extractor"
-                >
-                  ✎
-                </Link>
-              </div>
-              <div className="card-meta">Edit schema, training feedback, and held documents.</div>
+            <div className="extractor-row" key={extractor.id}>
+              <div className="card-title">{extractor.name || 'Untitled Extractor'}</div>
+              <Link
+                className="icon-btn-neutral"
+                to={`/app/services/extractors/${extractor.id}`}
+                aria-label="Edit extractor"
+              >
+                ✎
+              </Link>
             </div>
           ))}
         </div>
