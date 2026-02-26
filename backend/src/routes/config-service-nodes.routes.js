@@ -1,5 +1,6 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/require-auth.middleware');
+const { upload } = require('../middleware/upload.middleware');
 const {
   addExtractorFeedbackController,
   deleteExtractorFeedbackController,
@@ -17,6 +18,7 @@ const {
   listDocumentFoldersController,
   listExtractorsController,
   listSplittingPromptsController,
+  runExtractorInferenceController,
   sendOutFromExtractorController,
   sendOutFromFolderController,
   updateCategorisationPromptController,
@@ -51,11 +53,22 @@ router.get('/extractors', requireAuth, listExtractorsController);
 router.post('/extractors', requireAuth, createExtractorController);
 router.patch('/extractors/:extractorId', requireAuth, updateExtractorController);
 router.delete('/extractors/:extractorId', requireAuth, deleteExtractorController);
-router.post('/extractors/:extractorId/feedbacks', requireAuth, addExtractorFeedbackController);
+router.post(
+  '/extractors/:extractorId/feedbacks',
+  requireAuth,
+  upload.single('file'),
+  addExtractorFeedbackController
+);
 router.delete(
   '/extractors/:extractorId/feedbacks/:feedbackId',
   requireAuth,
   deleteExtractorFeedbackController
+);
+router.post(
+  '/extractors/:extractorId/extractions',
+  requireAuth,
+  upload.single('file'),
+  runExtractorInferenceController
 );
 router.post(
   '/extractors/:extractorId/held-documents',

@@ -774,6 +774,14 @@ hr {
   color: #8a4b00;
 }
 
+.tag-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.8rem;
+}
+
 .card-warning {
   border-color: #f1d4a6;
   background: transparent;

@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  addExtractorFeedback,
+  addExtractorFeedbackWithFile,
   createExtractor,
   deleteExtractor,
   deleteExtractorFeedback,
   listExtractors,
+  runExtractorInference,
   sendOutFromExtractor,
   updateExtractor
 } from '../../services/configServiceNodesApi';
@@ -53,6 +54,7 @@ export function ExtractorDetailPage() {
   const [extractionPreview, setExtractionPreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
+  const [usedFeedbackIds, setUsedFeedbackIds] = useState([]);
 
   useEffect(() => {
     if (isNew) {
@@ -247,9 +249,18 @@ export function ExtractorDetailPage() {
     setSelectedPreviewTarget(null);
 
     try {
-      const preview = buildPreviewFromSchema(schema);
+      const result = await runExtractorInference(extractorId, uploadedDocument);
+      const preview = result?.extraction || buildPreviewFromSchema(schema);
       setExtractionPreview(preview);
+      setUsedFeedbackIds(result?.usedFeedbackIds || []);
+      if (result?.usedFeedbackIds?.length) {
+        setFeedbackStatus(`Using ${result.usedFeedbackIds.length} similar feedback item(s).`);
+      } else {
+        setFeedbackStatus('Extraction complete');
+      }
       setFeedbackDocumentId(uploadedDocument.name || 'uploaded-document');
+    } catch (error) {
+      setFeedbackError(error?.response?.data?.error || 'Failed to run extraction');
     } finally {
       setIsExtracting(false);
     }
@@ -299,16 +310,25 @@ export function ExtractorDetailPage() {
       return;
     }
 
+    if (!uploadedDocument) {
+      setFeedbackError('Upload a document before saving feedback');
+      return;
+    }
+
     setFeedbackError('');
     setFeedbackStatus('');
 
     try {
-      const feedback = await addExtractorFeedback(extractorId, {
-        documentId: feedbackDocumentId.trim() || null,
-        targetType: feedbackTargetType,
-        targetPath: feedbackTargetPath.trim(),
-        feedbackText: feedbackText.trim()
-      });
+      const feedback = await addExtractorFeedbackWithFile(
+        extractorId,
+        {
+          documentId: feedbackDocumentId.trim() || null,
+          targetType: feedbackTargetType,
+          targetPath: feedbackTargetPath.trim(),
+          feedbackText: feedbackText.trim()
+        },
+        uploadedDocument
+      );
       setFeedbacks((current) => [feedback, ...current]);
       setFeedbackStatus('Feedback recorded');
       setFeedbackTargetPath('');
@@ -559,6 +579,7 @@ export function ExtractorDetailPage() {
     setFeedbackStatus('');
     setFeedbackError('');
     setFeedbackDocumentId(uploadedDocument?.name || '');
+    setUsedFeedbackIds([]);
   }, [uploadedDocument]);
 
   return (
@@ -969,6 +990,16 @@ export function ExtractorDetailPage() {
                       <p>Select a field or column to leave feedback.</p>
                     </div>
                   </div>
+                  {usedFeedbackIds.length ? (
+                    <div className="tag-row">
+                      <span className="tag">Using feedback</span>
+                      {usedFeedbackIds.map((id) => (
+                        <span className="tag tag-accent" key={id}>
+                          {id.slice(0, 6)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="panel-stack">
                     <div>
                       <h3>Header Fields</h3>
