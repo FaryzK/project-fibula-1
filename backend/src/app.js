@@ -5,6 +5,7 @@ const authRouter = require('./routes/auth.routes');
 const usersRouter = require('./routes/users.routes');
 const workflowsRouter = require('./routes/workflows.routes');
 const configServiceNodesRouter = require('./routes/config-service-nodes.routes');
+const dataMapperReconciliationRouter = require('./routes/data-mapper-reconciliation.routes');
 
 const app = express();
 
@@ -16,5 +17,6 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/workflows', workflowsRouter);
 app.use('/api', configServiceNodesRouter);
+app.use('/api', dataMapperReconciliationRouter);
 
 module.exports = app;
