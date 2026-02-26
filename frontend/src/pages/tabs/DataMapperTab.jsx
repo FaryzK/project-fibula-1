@@ -221,7 +221,7 @@ export function DataMapperTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Data Mapper</h2>
       <p>Manage data map sets and data map rules used by Data Mapper nodes.</p>
 
@@ -240,7 +240,7 @@ export function DataMapperTab() {
         Data Map Rules
       </button>
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
 
       {activeView === 'sets' ? (
         <div>

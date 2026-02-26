@@ -4,7 +4,7 @@ Project execution memory for Project Fibula.
 
 ## Current Snapshot
 - Date initialized: 2026-02-26
-- Status: Planned phases 0-8 completed
+- Status: Phase 9 UI polish in progress
 - Owner: Faryz
 
 ## Phase Status
@@ -19,6 +19,7 @@ Project execution memory for Project Fibula.
 | Phase 6 | Data Mapper + Reconciliation | Completed | codex/feat/phase-6-data-mapper-reconciliation | 2026-02-26 | Merged to `main` via PR #10 |
 | Phase 7 | Webhook + HTTP nodes | Completed | codex/feat/phase-7-webhook-http-nodes | 2026-02-26 | Merged to `main` via PR #12 |
 | Phase 8 | Hardening: tests, error handling, deployment readiness | Completed | codex/feat/phase-8-hardening | 2026-02-26 | Merged to `main` via PR #13 |
+| Phase 9 | UI polish: design system, shell consistency, canvas and tab visual refinement | In Progress | codex/feat/phase-9-ui-polish | 2026-02-26 | Requirements-guided UX polish for login, landing tabs, settings, and workflow canvas |
 
 ## Environment Variables (Track Additions)
 | Variable | Service | Required | Added In Phase | Documented in `.env.example` |
@@ -40,6 +41,13 @@ Project execution memory for Project Fibula.
 
 ## Blockers
 - None
+
+## UI Polish Plan (Phase 9)
+1. Build shared visual language in `frontend/src/index.css` (tokens, typography, layout shells, panel/controls).
+2. Restyle journey-critical pages (`/login`, `/app`, `/app/settings`) while preserving existing behavior/tests.
+3. Apply consistent panel styling across landing tab services for readability and scan speed.
+4. Refine workflow canvas shell and node card styling to feel productized while preserving existing interactions.
+5. Run full frontend tests and verify production build before PR.
 
 ## Change Log
 | Date | Change | By | Related Phase |

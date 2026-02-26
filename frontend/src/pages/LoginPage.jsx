@@ -13,20 +13,28 @@ export function LoginPage() {
 
   if (isLoading) {
     return (
-      <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-        <h1>Project Fibula 1</h1>
-        <p>Completing sign-in...</p>
+      <main className="auth-shell">
+        <section className="auth-card">
+          <span className="app-badge">AUTH</span>
+          <h1>Project Fibula 1</h1>
+          <p className="app-subtitle">Completing sign-in...</p>
+        </section>
       </main>
     );
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-      <h1>Project Fibula 1</h1>
-      <p>Sign in to access your workflows and document services.</p>
-      <button type="button" onClick={signInWithGoogle}>
-        Sign in with Google
-      </button>
+    <main className="auth-shell">
+      <section className="auth-card">
+        <span className="app-badge">FIBULA-1</span>
+        <h1>Document Workflow Control</h1>
+        <p className="app-subtitle">
+          Sign in with Google to access workflow design, service nodes, and operations tabs.
+        </p>
+        <button type="button" onClick={signInWithGoogle}>
+          Sign in with Google
+        </button>
+      </section>
     </main>
   );
 }

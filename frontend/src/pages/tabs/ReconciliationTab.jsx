@@ -251,7 +251,7 @@ export function ReconciliationTab() {
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Reconciliation Rules</h2>
       <p>Create reconciliation rules and review matching sets.</p>
 
@@ -309,7 +309,7 @@ export function ReconciliationTab() {
         </button>
       ) : null}
 
-      {errorText ? <p>{errorText}</p> : null}
+      {errorText ? <p className="status-error">{errorText}</p> : null}
       {isLoadingRules ? <p>Loading reconciliation rules...</p> : null}
       {!isLoadingRules && rules.length === 0 ? <p>No reconciliation rules yet.</p> : null}
 

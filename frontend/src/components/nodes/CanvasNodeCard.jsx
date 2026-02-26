@@ -14,10 +14,10 @@ export function CanvasNodeCard({ id, data }) {
       style={{
         width: 190,
         minHeight: 84,
-        border: '1px solid #111827',
-        borderRadius: 10,
-        background: '#ffffff',
-        boxShadow: '0 6px 18px rgba(15, 23, 42, 0.12)',
+        border: '1px solid #7f95b8',
+        borderRadius: 12,
+        background: 'linear-gradient(180deg, #ffffff, #eef4ff)',
+        boxShadow: '0 7px 20px rgba(15, 23, 42, 0.14)',
         padding: '10px 12px',
         position: 'relative'
       }}
@@ -31,7 +31,7 @@ export function CanvasNodeCard({ id, data }) {
             type="target"
             position={Position.Left}
             id={port.id}
-            style={{ top, width: 8, height: 8, background: '#0f172a' }}
+            style={{ top, width: 8, height: 8, background: '#1f5f97' }}
           />
         );
       })}
@@ -52,7 +52,7 @@ export function CanvasNodeCard({ id, data }) {
             type="source"
             position={Position.Right}
             id={port.id}
-            style={{ top, width: 8, height: 8, background: '#0f172a' }}
+            style={{ top, width: 8, height: 8, background: '#1f5f97' }}
           />
         );
       })}
@@ -72,8 +72,8 @@ export function CanvasNodeCard({ id, data }) {
           width: 26,
           height: 26,
           borderRadius: '50%',
-          border: '1px solid #1f2937',
-          background: '#f8fafc',
+          border: '1px solid #1f5f97',
+          background: '#ffffff',
           fontWeight: 700,
           cursor: 'pointer'
         }}

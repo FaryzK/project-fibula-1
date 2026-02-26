@@ -37,16 +37,21 @@ export function SettingsPage() {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-      <h1>User Settings</h1>
-      <p>
-        <Link to="/app">Back to Workflow Tab</Link>
-      </p>
+    <main className="app-shell">
+      <header className="app-hero">
+        <div>
+          <span className="app-badge">PROFILE</span>
+          <h1>User Settings</h1>
+          <p className="app-subtitle">Manage your display profile and user preferences.</p>
+        </div>
+        <div className="app-hero-actions">
+          <Link to="/app">Back to Workflow Tab</Link>
+        </div>
+      </header>
 
-      <form onSubmit={handleSubmit}>
-        <p>
+      <section className="panel" style={{ marginTop: '1rem' }}>
+        <form onSubmit={handleSubmit}>
           <label htmlFor="firstName">First name</label>
-          <br />
           <input
             id="firstName"
             name="firstName"
@@ -54,11 +59,8 @@ export function SettingsPage() {
             value={formValues.firstName}
             onChange={handleFieldChange}
           />
-        </p>
 
-        <p>
           <label htmlFor="lastName">Last name</label>
-          <br />
           <input
             id="lastName"
             name="lastName"
@@ -66,11 +68,8 @@ export function SettingsPage() {
             value={formValues.lastName}
             onChange={handleFieldChange}
           />
-        </p>
 
-        <p>
           <label htmlFor="profileIconUrl">Profile icon URL</label>
-          <br />
           <input
             id="profileIconUrl"
             name="profileIconUrl"
@@ -78,21 +77,18 @@ export function SettingsPage() {
             value={formValues.profileIconUrl}
             onChange={handleFieldChange}
           />
-        </p>
 
-        <p>
           <label htmlFor="theme">Theme</label>
-          <br />
           <select id="theme" name="theme" value={formValues.theme} onChange={handleFieldChange}>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
           </select>
-        </p>
 
-        <button type="submit">Save Settings</button>
-      </form>
+          <button type="submit">Save Settings</button>
+        </form>
 
-      {statusText ? <p>{statusText}</p> : null}
+        {statusText ? <p className="status-ok">{statusText}</p> : null}
+      </section>
     </main>
   );
 }

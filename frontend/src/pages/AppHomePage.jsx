@@ -73,25 +73,33 @@ function WorkflowList() {
   }
 
   if (isLoading) {
-    return <p>Loading workflows...</p>;
+    return (
+      <section className="panel">
+        <h2>Workflows</h2>
+        <p>Loading workflows...</p>
+      </section>
+    );
   }
 
   return (
-    <section>
+    <section className="panel">
       <h2>Workflows</h2>
-      <label htmlFor="new-workflow-name">New workflow name</label>
-      <br />
-      <input
-        id="new-workflow-name"
-        type="text"
-        value={newWorkflowName}
-        onChange={(event) => setNewWorkflowName(event.target.value)}
-      />
-      <button type="button" onClick={handleCreateWorkflow}>
-        Add Workflow
-      </button>
+      <p>Create and manage document processing workflows from one workspace.</p>
 
-      {error ? <p>{error}</p> : null}
+      <div className="panel-actions">
+        <label htmlFor="new-workflow-name">New workflow name</label>
+        <input
+          id="new-workflow-name"
+          type="text"
+          value={newWorkflowName}
+          onChange={(event) => setNewWorkflowName(event.target.value)}
+        />
+        <button type="button" onClick={handleCreateWorkflow}>
+          Add Workflow
+        </button>
+      </div>
+
+      {error ? <p className="status-error">{error}</p> : null}
 
       {workflows.length === 0 ? <p>No workflows yet.</p> : null}
 
@@ -118,7 +126,10 @@ function WorkflowList() {
                 </>
               ) : (
                 <>
-                  <strong>{workflow.name}</strong> - {workflow.isPublished ? 'Published' : 'Draft'}
+                  <p>
+                    <strong>{workflow.name}</strong> -{' '}
+                    {workflow.isPublished ? 'Published' : 'Draft'}
+                  </p>
                   <p>
                     <Link to={`/app/workflows/${workflow.id}/canvas`}>Open Canvas</Link>
                   </p>
@@ -184,21 +195,25 @@ export function AppHomePage() {
   }, [activeTab]);
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '2rem' }}>
-      <h1>Workflow Tab</h1>
-      <p>Signed in as {user?.email || 'unknown user'}.</p>
-      <p>
-        Name: {profile?.firstName || ''} {profile?.lastName || ''}
-      </p>
-      <p>
-        <Link to="/app/settings">Go to User Settings</Link>
-      </p>
-      <button type="button" onClick={signOut}>
-        Logout
-      </button>
+    <main className="app-shell">
+      <header className="app-hero">
+        <div>
+          <span className="app-badge">PROJECT FIBULA-1</span>
+          <h1>Workflow Tab</h1>
+          <p className="app-subtitle">Signed in as {user?.email || 'unknown user'}.</p>
+          <p className="app-subtitle">
+            Name: {profile?.firstName || ''} {profile?.lastName || ''}
+          </p>
+        </div>
+        <div className="app-hero-actions">
+          <Link to="/app/settings">Go to User Settings</Link>
+          <button type="button" onClick={signOut}>
+            Logout
+          </button>
+        </div>
+      </header>
 
-      <hr />
-      <nav aria-label="Landing tabs">
+      <nav aria-label="Landing tabs" className="tab-nav">
         {TABS.map((tab) => (
           <button
             key={tab.key}
@@ -210,7 +225,6 @@ export function AppHomePage() {
           </button>
         ))}
       </nav>
-      <hr />
       {activeTabContent}
     </main>
   );

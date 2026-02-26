@@ -777,13 +777,14 @@ function WorkflowCanvasContent({ workflowId }) {
   }
 
   return (
-    <main style={{ fontFamily: 'system-ui', padding: '1rem 1.2rem' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <main className="canvas-shell">
+      <div className="canvas-header">
         <div>
-          <h1 style={{ marginBottom: 6 }}>Workflow Canvas</h1>
-          <p style={{ marginTop: 0, opacity: 0.75 }}>Workflow ID: {workflowId}</p>
+          <span className="app-badge">CANVAS</span>
+          <h1 style={{ marginTop: 6 }}>Workflow Canvas</h1>
+          <p className="app-subtitle">Workflow ID: {workflowId}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="canvas-header-actions">
           <button type="button" onClick={recenterView}>
             Re-center
           </button>
@@ -800,17 +801,8 @@ function WorkflowCanvasContent({ workflowId }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 12, marginTop: 10 }}>
-        <div
-          ref={canvasWrapperRef}
-          style={{
-            flex: 1,
-            minHeight: '72vh',
-            border: '1px solid #d1d5db',
-            borderRadius: 12,
-            background: '#f8fafc'
-          }}
-        >
+      <div className="canvas-layout">
+        <div ref={canvasWrapperRef} className="canvas-stage">
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -833,15 +825,7 @@ function WorkflowCanvasContent({ workflowId }) {
         </div>
 
         {isNodeLibraryOpen ? (
-          <aside
-            style={{
-              width: 280,
-              border: '1px solid #d1d5db',
-              borderRadius: 12,
-              padding: 10,
-              background: '#ffffff'
-            }}
-          >
+          <aside className="canvas-aside">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <strong>{branchSourceNodeId ? 'Add Connected Node' : 'Node Library'}</strong>
               <button type="button" onClick={closeNodeLibrary}>
@@ -881,13 +865,8 @@ function WorkflowCanvasContent({ workflowId }) {
       </div>
 
       <section
-        style={{
-          marginTop: 10,
-          border: '1px solid #d1d5db',
-          borderRadius: 12,
-          padding: 10,
-          background: '#ffffff'
-        }}
+        className="panel"
+        style={{ marginTop: 10 }}
       >
         <strong>Node Menu</strong>
         {selectedNode ? (
