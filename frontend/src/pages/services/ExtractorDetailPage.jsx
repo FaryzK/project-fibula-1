@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
-import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist/legacy/build/pdf';
+import pdfWorkerSrc from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
+  addExtractorFeedback,
   addExtractorFeedbackWithFile,
   createExtractor,
   deleteExtractor,
@@ -46,11 +47,8 @@ export function ExtractorDetailPage() {
   const [activeTab, setActiveTab] = useState('schema');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEditingSchema, setIsEditingSchema] = useState(isNew);
-  const [feedbacks, setFeedbacks] = useState([]);
+  const [feedbackGroups, setFeedbackGroups] = useState([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState('');
-  const [feedbackTargetType, setFeedbackTargetType] = useState('header');
-  const [feedbackTargetPath, setFeedbackTargetPath] = useState('');
-  const [feedbackText, setFeedbackText] = useState('');
   const [feedbackStatus, setFeedbackStatus] = useState('');
   const [feedbackError, setFeedbackError] = useState('');
   const [selectedHeldDocs, setSelectedHeldDocs] = useState([]);
@@ -58,6 +56,11 @@ export function ExtractorDetailPage() {
   const [extractionPreview, setExtractionPreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
+  const [activeFeedbackGroupId, setActiveFeedbackGroupId] = useState('');
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [modalTarget, setModalTarget] = useState(null);
+  const [modalFeedbackText, setModalFeedbackText] = useState('');
+  const [modalFeedbackError, setModalFeedbackError] = useState('');
   const [usedFeedbackIds, setUsedFeedbackIds] = useState([]);
   const [documentUrl, setDocumentUrl] = useState('');
   const [documentType, setDocumentType] = useState('');
@@ -90,7 +93,7 @@ export function ExtractorDetailPage() {
         setName(found.name || '');
         setSchema(found.schema || DEFAULT_SCHEMA);
         setHoldAllDocuments(Boolean(found.holdAllDocuments));
-        setFeedbacks(found.feedbacks || []);
+        setFeedbackGroups(normalizeFeedbackGroups(found.feedbacks || []));
         setIsEditingSchema(false);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load extractor');
@@ -249,6 +252,108 @@ export function ExtractorDetailPage() {
     };
   }
 
+  function normalizeFeedbackGroup(group) {
+    if (!group) {
+      return null;
+    }
+
+    if (Array.isArray(group.feedbackItems)) {
+      return { ...group, feedbackItems: group.feedbackItems };
+    }
+
+    const createdAt = group.createdAt || new Date().toISOString();
+    return {
+      id: group.id,
+      documentId: group.documentId || null,
+      document: group.document || null,
+      documentSummary: group.documentSummary || null,
+      embedding: group.embedding || null,
+      storageBucket: group.storageBucket || null,
+      storagePath: group.storagePath || null,
+      feedbackItems: [
+        {
+          id: group.id,
+          targetType: group.targetType || null,
+          targetPath: group.targetPath || null,
+          feedbackText: group.feedbackText || '',
+          createdAt
+        }
+      ],
+      createdAt,
+      updatedAt: group.updatedAt || createdAt
+    };
+  }
+
+  function normalizeFeedbackGroups(items) {
+    if (!Array.isArray(items)) {
+      return [];
+    }
+    return items.map((group) => normalizeFeedbackGroup(group)).filter(Boolean);
+  }
+
+  function upsertFeedbackGroup(group) {
+    const normalized = normalizeFeedbackGroup(group);
+    if (!normalized) {
+      return;
+    }
+    setFeedbackGroups((current) => {
+      const index = current.findIndex((item) => item.id === normalized.id);
+      if (index < 0) {
+        return [normalized, ...current];
+      }
+      const next = [...current];
+      next[index] = normalized;
+      return next;
+    });
+  }
+
+  function buildGroupedTables(tableTypes, schemaTables) {
+    const groups = new Map();
+    const schemaColumns = new Map();
+
+    (schemaTables || []).forEach((table) => {
+      const name = table.tableName || 'Table';
+      const columns = (table.columns || [])
+        .map((column) => column.columnName || 'Column')
+        .filter(Boolean);
+      if (columns.length) {
+        schemaColumns.set(name, columns);
+      }
+    });
+
+    (tableTypes || []).forEach((table) => {
+      const name = table.tableName || 'Table';
+      const columns = (table.columns || []).map((column) => ({
+        name: column.columnName || 'Column',
+        value: column.value ?? null
+      }));
+
+      if (!groups.has(name)) {
+        groups.set(name, {
+          tableName: name,
+          columns: [...(schemaColumns.get(name) || [])],
+          rows: []
+        });
+      }
+
+      const group = groups.get(name);
+      columns.forEach((column) => {
+        if (!group.columns.includes(column.name)) {
+          group.columns.push(column.name);
+          group.rows = group.rows.map((row) => [...row, null]);
+        }
+      });
+
+      const row = group.columns.map((columnName) => {
+        const found = columns.find((column) => column.name === columnName);
+        return found ? found.value : null;
+      });
+      group.rows.push(row);
+    });
+
+    return Array.from(groups.values());
+  }
+
   async function handleRunExtraction() {
     if (!uploadedDocument) {
       setFeedbackError('Upload a document before running extraction');
@@ -266,7 +371,7 @@ export function ExtractorDetailPage() {
       setExtractionPreview(preview);
       setUsedFeedbackIds(result?.usedFeedbackIds || []);
       if (result?.usedFeedbackIds?.length) {
-        setFeedbackStatus(`Using ${result.usedFeedbackIds.length} similar feedback item(s).`);
+        setFeedbackStatus(`Using ${result.usedFeedbackIds.length} similar feedback document(s).`);
       } else {
         setFeedbackStatus('Extraction complete');
       }
@@ -278,17 +383,31 @@ export function ExtractorDetailPage() {
     }
   }
 
-  function handleSelectHeaderTarget(fieldName) {
-    setSelectedPreviewTarget({ type: 'header', path: fieldName });
-    setFeedbackTargetType('header');
-    setFeedbackTargetPath(fieldName);
+  function openFeedbackModal(target) {
+    setSelectedPreviewTarget({ type: target.type, path: target.path });
+    setModalTarget(target);
+    setModalFeedbackText('');
+    setModalFeedbackError('');
+    setIsFeedbackModalOpen(true);
   }
 
-  function handleSelectTableTarget(tableName, columnName) {
-    const path = `${tableName}.${columnName}`;
-    setSelectedPreviewTarget({ type: 'table', path });
-    setFeedbackTargetType('table');
-    setFeedbackTargetPath(path);
+  function handleSelectHeaderTarget(fieldName, value) {
+    openFeedbackModal({
+      type: 'header',
+      path: fieldName,
+      label: fieldName,
+      value
+    });
+  }
+
+  function handleSelectTableTarget(tableName, columnName, rowIndex, value) {
+    const path = `${tableName}[${rowIndex + 1}].${columnName}`;
+    openFeedbackModal({
+      type: 'table',
+      path,
+      label: `${tableName} · ${columnName} (Row ${rowIndex + 1})`,
+      value
+    });
   }
 
   function addColumn(tableIndex) {
@@ -312,43 +431,70 @@ export function ExtractorDetailPage() {
   }
 
   async function handleAddFeedback() {
-    if (!feedbackText.trim()) {
-      setFeedbackError('Feedback text is required');
+    if (!modalFeedbackText.trim()) {
+      setModalFeedbackError('Feedback text is required');
       return;
     }
 
-    if (!feedbackTargetPath) {
-      setFeedbackError('Select a field or table cell to leave feedback');
+    if (!modalTarget?.path) {
+      setModalFeedbackError('Select a field or table cell to leave feedback');
       return;
     }
 
     if (!uploadedDocument) {
-      setFeedbackError('Upload a document before saving feedback');
+      setModalFeedbackError('Upload a document before saving feedback');
       return;
     }
 
     setFeedbackError('');
     setFeedbackStatus('');
+    setModalFeedbackError('');
 
     try {
-      const feedback = await addExtractorFeedbackWithFile(
-        extractorId,
-        {
-          documentId: feedbackDocumentId.trim() || null,
-          targetType: feedbackTargetType,
-          targetPath: feedbackTargetPath.trim(),
-          feedbackText: feedbackText.trim()
-        },
-        uploadedDocument
-      );
-      setFeedbacks((current) => [feedback, ...current]);
-      setFeedbackStatus('Feedback recorded');
-      setFeedbackTargetPath('');
-      setFeedbackText('');
+      let feedbackGroup = null;
+
+      if (activeFeedbackGroupId) {
+        feedbackGroup = await addExtractorFeedback(extractorId, {
+          feedbackGroupId: activeFeedbackGroupId,
+          targetType: modalTarget.type,
+          targetPath: modalTarget.path.trim(),
+          feedbackText: modalFeedbackText.trim()
+        });
+      } else {
+        feedbackGroup = await addExtractorFeedbackWithFile(
+          extractorId,
+          {
+            documentId: feedbackDocumentId.trim() || null,
+            targetType: modalTarget.type,
+            targetPath: modalTarget.path.trim(),
+            feedbackText: modalFeedbackText.trim()
+          },
+          uploadedDocument
+        );
+        if (feedbackGroup?.id) {
+          setActiveFeedbackGroupId(feedbackGroup.id);
+        }
+      }
+
+      upsertFeedbackGroup(feedbackGroup);
+      setFeedbackStatus('Feedback recorded for this document');
       setSelectedPreviewTarget(null);
+      setIsFeedbackModalOpen(false);
+      setModalFeedbackText('');
+      setModalFeedbackError('');
     } catch (error) {
-      setFeedbackError(error?.response?.data?.error || 'Failed to add feedback');
+      const message = error?.response?.data?.error || 'Failed to add feedback';
+      setModalFeedbackError(message);
+      setFeedbackError(message);
     }
+  }
+
+  function handleCloseFeedbackModal() {
+    setIsFeedbackModalOpen(false);
+    setModalTarget(null);
+    setModalFeedbackText('');
+    setModalFeedbackError('');
+    setSelectedPreviewTarget(null);
   }
 
   async function handleDeleteFeedback(feedbackId) {
@@ -357,7 +503,10 @@ export function ExtractorDetailPage() {
 
     try {
       await deleteExtractorFeedback(extractorId, feedbackId);
-      setFeedbacks((current) => current.filter((item) => item.id !== feedbackId));
+      setFeedbackGroups((current) => current.filter((item) => item.id !== feedbackId));
+      if (feedbackId === activeFeedbackGroupId) {
+        setActiveFeedbackGroupId('');
+      }
       setFeedbackStatus('Feedback removed');
     } catch (error) {
       setFeedbackError(error?.response?.data?.error || 'Failed to delete feedback');
@@ -380,7 +529,7 @@ export function ExtractorDetailPage() {
       if (found) {
         setExtractorMeta(found);
         setHoldAllDocuments(Boolean(found.holdAllDocuments));
-        setFeedbacks(found.feedbacks || []);
+        setFeedbackGroups(normalizeFeedbackGroups(found.feedbacks || []));
         setSchema(found.schema || DEFAULT_SCHEMA);
       }
       setStatusText('Selected documents sent out');
@@ -469,7 +618,7 @@ export function ExtractorDetailPage() {
         holdAllDocuments
       });
       setExtractorMeta(extractor);
-      setFeedbacks(extractor.feedbacks || []);
+      setFeedbackGroups(normalizeFeedbackGroups(extractor.feedbacks || []));
       setStatusText('Schema updated');
       setIsEditingSchema(false);
     } catch (error) {
@@ -484,7 +633,7 @@ export function ExtractorDetailPage() {
       setName(extractorMeta.name || '');
       setSchema(extractorMeta.schema || DEFAULT_SCHEMA);
       setHoldAllDocuments(Boolean(extractorMeta.holdAllDocuments));
-      setFeedbacks(extractorMeta.feedbacks || []);
+      setFeedbackGroups(normalizeFeedbackGroups(extractorMeta.feedbacks || []));
     }
     setErrorText('');
     setStatusText('');
@@ -543,6 +692,21 @@ export function ExtractorDetailPage() {
   const heldDocuments = extractorMeta?.heldDocuments || emptyArray;
   const canEditSchema = isNew || isEditingSchema;
   const titleText = name.trim() || (isNew ? 'New Extractor' : 'Untitled Extractor');
+  const groupedTables = useMemo(
+    () =>
+      extractionPreview
+        ? buildGroupedTables(extractionPreview.tableTypes || [], schema.tableTypes || [])
+        : [],
+    [extractionPreview, schema]
+  );
+  const usedFeedbackLabels = useMemo(
+    () =>
+      usedFeedbackIds.map((id) => {
+        const group = feedbackGroups.find((item) => item.id === id);
+        return group?.documentId || group?.document?.fileName || id.slice(0, 6);
+      }),
+    [usedFeedbackIds, feedbackGroups]
+  );
   const formatTimestamp = (value) => {
     if (!value) {
       return 'Unknown';
@@ -586,12 +750,15 @@ export function ExtractorDetailPage() {
   useEffect(() => {
     setExtractionPreview(null);
     setSelectedPreviewTarget(null);
-    setFeedbackTargetPath('');
-    setFeedbackText('');
     setFeedbackStatus('');
     setFeedbackError('');
     setFeedbackDocumentId(uploadedDocument?.name || '');
     setUsedFeedbackIds([]);
+    setActiveFeedbackGroupId('');
+    setIsFeedbackModalOpen(false);
+    setModalTarget(null);
+    setModalFeedbackText('');
+    setModalFeedbackError('');
   }, [uploadedDocument]);
 
   useEffect(() => {
@@ -613,13 +780,12 @@ export function ExtractorDetailPage() {
     setDocumentPages(1);
     setDocumentPage(1);
     setDocumentError('');
-
-    if (nextType === 'application/pdf') {
-      if (documentUrl) {
-        URL.revokeObjectURL(documentUrl);
-      }
-      setDocumentUrl('');
-      return;
+    if (nextType !== 'application/pdf') {
+      setIsDocumentLoading(false);
+      pdfDocRef.current = null;
+    }
+    if (documentUrl) {
+      URL.revokeObjectURL(documentUrl);
     }
 
     const nextUrl = URL.createObjectURL(uploadedDocument);
@@ -631,18 +797,18 @@ export function ExtractorDetailPage() {
   }, [uploadedDocument]);
 
   useEffect(() => {
-    if (!uploadedDocument || documentType !== 'application/pdf') {
+    if (!uploadedDocument || documentType !== 'application/pdf' || !documentUrl) {
       pdfDocRef.current = null;
       return;
     }
 
     let isCancelled = false;
     setIsDocumentLoading(true);
+    setDocumentError('');
 
     async function loadPdf() {
       try {
-        const buffer = await uploadedDocument.arrayBuffer();
-        const pdf = await getDocument({ data: buffer }).promise;
+        const pdf = await getDocument({ url: documentUrl }).promise;
         if (isCancelled) {
           return;
         }
@@ -677,6 +843,7 @@ export function ExtractorDetailPage() {
       const context = canvas.getContext('2d');
       canvas.height = viewport.height;
       canvas.width = viewport.width;
+      context.clearRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: context, viewport }).promise;
     }
 
@@ -1062,71 +1229,82 @@ export function ExtractorDetailPage() {
               <section className="panel">
                 <div className="panel-header">
                   <div>
-                    <h2>Capture Training Feedback</h2>
+                    <h2>Training Feedback</h2>
                     <p>Upload a document, run extraction, and annotate incorrect fields.</p>
                   </div>
                 </div>
-                <div className="feedback-toolbar">
-                  <div className="form-grid">
-                    <label htmlFor="feedback-upload">Upload document</label>
-                    <input
-                      id="feedback-upload"
-                      type="file"
-                      onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-outline"
-                    onClick={handleRunExtraction}
-                    disabled={isExtracting || !uploadedDocument}
-                  >
-                    {isExtracting ? 'Extracting...' : extractionPreview ? 'Re-extract' : 'Run Extraction'}
-                  </button>
-                </div>
-
                 {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
                 {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
               </section>
 
               <div className="feedback-grid">
-                <section className="panel feedback-column">
+                <section className="panel feedback-column feedback-sticky">
                   <div className="panel-header">
                     <div>
-                      <h2>Document Preview</h2>
-                      <p>Compare the extracted data with the source.</p>
+                      <h2>Document</h2>
+                      <p>Upload a file and review the first page.</p>
                     </div>
                   </div>
-                  <div className={`document-preview ${documentUrl ? '' : 'empty'}`}>
+                  <div className="feedback-toolbar">
+                    <div className="form-grid">
+                      <label htmlFor="feedback-upload">Upload document</label>
+                      <input
+                        id="feedback-upload"
+                        type="file"
+                        onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline"
+                      onClick={handleRunExtraction}
+                      disabled={isExtracting || !uploadedDocument}
+                    >
+                      {isExtracting ? 'Extracting...' : extractionPreview ? 'Re-extract' : 'Run Extraction'}
+                    </button>
+                  </div>
+                  <div className={`document-preview ${uploadedDocument ? '' : 'empty'}`}>
                     {uploadedDocument ? (
                       documentType === 'application/pdf' ? (
                         <>
                           {isDocumentLoading ? <p className="muted-text">Loading document…</p> : null}
-                          {documentError ? <p className="status-error">{documentError}</p> : null}
-                          <canvas ref={pdfRef} className="pdf-canvas" />
-                          <div className="page-controls">
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() => setDocumentPage((current) => Math.max(1, current - 1))}
-                              disabled={documentPage <= 1}
-                            >
-                              Prev
-                            </button>
-                            <span className="page-indicator">
-                              Page {documentPage} of {documentPages}
-                            </span>
-                            <button
-                              type="button"
-                              className="btn btn-ghost"
-                              onClick={() =>
-                                setDocumentPage((current) => Math.min(documentPages, current + 1))
-                              }
-                              disabled={documentPage >= documentPages}
-                            >
-                              Next
-                            </button>
-                          </div>
+                          {documentError ? (
+                            <div className="pdf-fallback">
+                              <p className="status-error">{documentError}</p>
+                              {documentUrl ? (
+                                <object data={documentUrl} type="application/pdf" className="pdf-object">
+                                  <p className="muted-text">Preview unavailable. Open the PDF in a new tab.</p>
+                                </object>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <>
+                              <canvas ref={pdfRef} className="pdf-canvas" />
+                              <div className="page-controls">
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() => setDocumentPage((current) => Math.max(1, current - 1))}
+                                  disabled={documentPage <= 1}
+                                >
+                                  Prev
+                                </button>
+                                <span className="page-indicator">
+                                  Page {documentPage} of {documentPages}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost"
+                                  onClick={() =>
+                                    setDocumentPage((current) => Math.min(documentPages, current + 1))
+                                  }
+                                  disabled={documentPage >= documentPages}
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </>
                       ) : (
                         <img src={documentUrl} alt="Uploaded document preview" />
@@ -1141,15 +1319,15 @@ export function ExtractorDetailPage() {
                   <div className="panel-header">
                     <div>
                       <h2>Extraction & Feedback</h2>
-                      <p>Select a field or table cell, then leave feedback.</p>
+                      <p>Select a field or table cell to leave feedback.</p>
                     </div>
                   </div>
-                  {usedFeedbackIds.length ? (
+                  {usedFeedbackLabels.length ? (
                     <div className="tag-row">
-                      <span className="tag">Using feedback</span>
-                      {usedFeedbackIds.map((id) => (
-                        <span className="tag tag-accent" key={id}>
-                          {id.slice(0, 6)}
+                      <span className="tag">Using feedback from</span>
+                      {usedFeedbackLabels.map((label, index) => (
+                        <span className="tag tag-accent" key={`${label}-${index}`}>
+                          {label}
                         </span>
                       ))}
                     </div>
@@ -1179,7 +1357,7 @@ export function ExtractorDetailPage() {
                                     <button
                                       type="button"
                                       className={`select-btn ${selectedPreviewTarget?.path === field.fieldName ? 'active' : ''}`}
-                                      onClick={() => handleSelectHeaderTarget(field.fieldName)}
+                                      onClick={() => handleSelectHeaderTarget(field.fieldName, field.value)}
                                     >
                                       Select
                                     </button>
@@ -1193,74 +1371,73 @@ export function ExtractorDetailPage() {
 
                       <div>
                         <h3>Table Types</h3>
-                        {(extractionPreview.tableTypes || []).length === 0 ? (
+                        {groupedTables.length === 0 ? (
                           <p className="muted-text">No table types defined.</p>
                         ) : (
-                          extractionPreview.tableTypes.map((table) => (
+                          groupedTables.map((table) => (
                             <div key={table.tableName} className="table-preview">
-                              <div className="panel-header">
+                              <div className="panel-header table-preview-header">
                                 <div>
                                   <h3>{table.tableName}</h3>
-                                  <p className="muted-text">Single-row preview of extracted values.</p>
+                                  <p className="muted-text">Review each row and select cells to leave feedback.</p>
                                 </div>
                               </div>
-                              <table className="preview-table">
-                                <thead>
-                                  <tr>
-                                    {table.columns.map((column) => (
-                                      <th key={`${table.tableName}-${column.columnName}`}>
-                                        {column.columnName}
-                                      </th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  <tr>
-                                    {table.columns.map((column) => (
-                                      <td key={`${table.tableName}-${column.columnName}`}>
-                                        <button
-                                          type="button"
-                                          className={`cell-select ${selectedPreviewTarget?.path === `${table.tableName}.${column.columnName}` ? 'active' : ''}`}
-                                          onClick={() =>
-                                            handleSelectTableTarget(table.tableName, column.columnName)
-                                          }
-                                        >
-                                          {column.value}
-                                        </button>
-                                      </td>
-                                    ))}
-                                  </tr>
-                                </tbody>
-                              </table>
+                              {table.columns.length === 0 ? (
+                                <p className="muted-text">No columns defined for this table.</p>
+                              ) : (
+                                <div className="table-scroll">
+                                  <table className="preview-table">
+                                    <thead>
+                                      <tr>
+                                        <th>#</th>
+                                        {table.columns.map((column) => (
+                                          <th key={`${table.tableName}-${column}`}>{column}</th>
+                                        ))}
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {table.rows.length === 0 ? (
+                                        <tr>
+                                          <td colSpan={table.columns.length + 1}>
+                                            <span className="muted-text">No extracted rows.</span>
+                                          </td>
+                                        </tr>
+                                      ) : (
+                                        table.rows.map((row, rowIndex) => (
+                                          <tr key={`${table.tableName}-row-${rowIndex}`}>
+                                            <td>{rowIndex + 1}</td>
+                                            {table.columns.map((column, columnIndex) => {
+                                              const value = row[columnIndex] ?? '—';
+                                              const path = `${table.tableName}[${rowIndex + 1}].${column}`;
+                                              return (
+                                                <td key={`${table.tableName}-${column}-${rowIndex}`}>
+                                                  <button
+                                                    type="button"
+                                                    className={`cell-select ${selectedPreviewTarget?.path === path ? 'active' : ''}`}
+                                                    onClick={() =>
+                                                      handleSelectTableTarget(
+                                                        table.tableName,
+                                                        column,
+                                                        rowIndex,
+                                                        value
+                                                      )
+                                                    }
+                                                  >
+                                                    {value}
+                                                  </button>
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
+                                        ))
+                                      )}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
                             </div>
                           ))
                         )}
-                      </div>
-
-                      <div className="feedback-form">
-                        <label htmlFor="feedback-target">Selected target</label>
-                        <input
-                          id="feedback-target"
-                          type="text"
-                          value={selectedPreviewTarget?.path || ''}
-                          placeholder="Select a field or column"
-                          disabled
-                        />
-
-                        <label htmlFor="feedback-text">Feedback</label>
-                        <textarea
-                          id="feedback-text"
-                          rows={4}
-                          value={feedbackText}
-                          onChange={(event) => setFeedbackText(event.target.value)}
-                          placeholder="Describe the correction that should be applied."
-                        />
-
-                        <div className="panel-actions">
-                          <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
-                            Save Feedback
-                          </button>
-                        </div>
                       </div>
                     </div>
                   ) : (
@@ -1276,29 +1453,47 @@ export function ExtractorDetailPage() {
                     <p>Stored feedback used to guide future extractions.</p>
                   </div>
                 </div>
-                {feedbacks.length === 0 ? (
+                {feedbackGroups.length === 0 ? (
                   <p className="muted-text">No feedback recorded yet.</p>
                 ) : (
                   <div className="data-table">
                     <div className="data-header four-col">
                       <span>Document</span>
-                      <span>Target</span>
+                      <span>Targets</span>
                       <span>Feedback</span>
                       <span></span>
                     </div>
-                    {feedbacks.map((feedback) => (
+                    {feedbackGroups.map((feedback) => (
                       <div className="data-row four-col" key={feedback.id}>
                         <div className="data-cell">
-                          <span className="card-title">{feedback.documentId || 'Document'}</span>
-                          <span className="data-meta">{feedback.createdAt ? formatTimestamp(feedback.createdAt) : ''}</span>
-                        </div>
-                        <div className="data-cell">
+                          <span className="card-title">
+                            {feedback.documentId || feedback.document?.fileName || 'Document'}
+                          </span>
                           <span className="data-meta">
-                            {feedback.targetType || 'Target'} {feedback.targetPath ? `· ${feedback.targetPath}` : ''}
+                            {feedback.createdAt ? formatTimestamp(feedback.createdAt) : ''}
+                          </span>
+                          <span className="data-meta">
+                            {(feedback.feedbackItems || []).length} feedback item(s)
                           </span>
                         </div>
                         <div className="data-cell">
-                          <span className="data-meta">{feedback.feedbackText || '—'}</span>
+                          <div className="stacked-meta">
+                            {(feedback.feedbackItems || []).map((item) => (
+                              <span className="data-meta" key={item.id}>
+                                {item.targetType || 'Target'}
+                                {item.targetPath ? ` · ${item.targetPath}` : ''}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="data-cell">
+                          <div className="stacked-meta">
+                            {(feedback.feedbackItems || []).map((item) => (
+                              <span className="data-meta" key={`${item.id}-text`}>
+                                {item.feedbackText || '—'}
+                              </span>
+                            ))}
+                          </div>
                         </div>
                         <div className="data-cell">
                           <button
@@ -1478,6 +1673,62 @@ export function ExtractorDetailPage() {
                   </button>
                 </div>
               </section>
+            </div>
+          ) : null}
+
+          {isFeedbackModalOpen ? (
+            <div
+              className="feedback-modal"
+              role="dialog"
+              aria-modal="true"
+              onClick={handleCloseFeedbackModal}
+            >
+              <div className="feedback-dialog" onClick={(event) => event.stopPropagation()}>
+                <div className="feedback-dialog-header">
+                  <div>
+                    <h3>Leave feedback</h3>
+                    <p>Describe how this value should be extracted.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={handleCloseFeedbackModal}
+                    aria-label="Close feedback dialog"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="feedback-dialog-body">
+                  <div className="feedback-target">
+                    <span className="data-meta">Selected target</span>
+                    <div className="card-title">{modalTarget?.label || modalTarget?.path || ''}</div>
+                    {modalTarget && modalTarget.value !== undefined ? (
+                      <span className="data-meta">
+                        Extracted value: {String(modalTarget.value ?? '—')}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <label htmlFor="modal-feedback-text">Feedback</label>
+                  <textarea
+                    id="modal-feedback-text"
+                    rows={4}
+                    value={modalFeedbackText}
+                    onChange={(event) => setModalFeedbackText(event.target.value)}
+                    placeholder="Describe the correction that should be applied."
+                  />
+
+                  {modalFeedbackError ? <p className="status-error">{modalFeedbackError}</p> : null}
+                </div>
+                <div className="feedback-dialog-actions">
+                  <button type="button" className="btn btn-ghost" onClick={handleCloseFeedbackModal}>
+                    Cancel
+                  </button>
+                  <button type="button" className="btn-primary" onClick={handleAddFeedback}>
+                    Save Feedback
+                  </button>
+                </div>
+              </div>
             </div>
           ) : null}
         </>

@@ -43,6 +43,84 @@ function listByOwner(store, userId) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+function normalizeFeedbackGroups(feedbacks) {
+  if (!Array.isArray(feedbacks) || feedbacks.length === 0) {
+    return [];
+  }
+
+  if (feedbacks[0]?.feedbackItems) {
+    return feedbacks.map((group) => ({
+      ...group,
+      feedbackItems: Array.isArray(group.feedbackItems) ? group.feedbackItems : []
+    }));
+  }
+
+  return feedbacks.map((item) => {
+    const createdAt = item.createdAt || new Date().toISOString();
+    return {
+      id: item.id || randomUUID(),
+      documentId: item.documentId || null,
+      document: item.document || null,
+      documentSummary: item.documentSummary || null,
+      embedding: item.embedding || null,
+      storageBucket: item.storageBucket || null,
+      storagePath: item.storagePath || null,
+      feedbackItems: [
+        {
+          id: item.id || randomUUID(),
+          targetType: item.targetType || null,
+          targetPath: item.targetPath || null,
+          feedbackText: item.feedbackText || '',
+          createdAt
+        }
+      ],
+      createdAt,
+      updatedAt: createdAt
+    };
+  });
+}
+
+function withNormalizedFeedbacks(extractor) {
+  if (!extractor) {
+    return extractor;
+  }
+
+  const feedbacks = normalizeFeedbackGroups(extractor.feedbacks || []);
+  return { ...extractor, feedbacks };
+}
+
+function buildFeedbackItem(payload, now) {
+  const createdAt = payload.createdAt || now || new Date().toISOString();
+  return {
+    id: payload.itemId || payload.id || randomUUID(),
+    targetType: payload.targetType || null,
+    targetPath: payload.targetPath || null,
+    feedbackText: payload.feedbackText || '',
+    createdAt
+  };
+}
+
+function buildFeedbackGroup(payload, now) {
+  const createdAt = payload.createdAt || now || new Date().toISOString();
+  const groupId = payload.groupId || payload.id || randomUUID();
+  return {
+    id: groupId,
+    documentId: payload.documentId || null,
+    document: payload.document || null,
+    documentSummary: payload.documentSummary || null,
+    embedding: payload.embedding || null,
+    storageBucket: payload.storageBucket || null,
+    storagePath: payload.storagePath || null,
+    feedbackItems: [buildFeedbackItem(payload, createdAt)],
+    createdAt,
+    updatedAt: createdAt
+  };
+}
+
+function countFeedbackItems(groups) {
+  return groups.reduce((total, group) => total + (group.feedbackItems || []).length, 0);
+}
+
 async function createSplittingPrompt(userId, payload) {
   const now = new Date().toISOString();
   const prompt = {
@@ -601,11 +679,14 @@ async function listExtractors(userId) {
     ? listByOwner(extractorsById, userId)
     : await listEntities(TABLES.extractors, userId);
 
-  return extractors.map((extractor) => ({
-    ...extractor,
-    heldDocumentCount: (extractor.heldDocuments || []).length,
-    feedbackCount: (extractor.feedbacks || []).length
-  }));
+  return extractors.map((extractor) => {
+    const normalized = withNormalizedFeedbacks(extractor);
+    return {
+      ...normalized,
+      heldDocumentCount: (normalized.heldDocuments || []).length,
+      feedbackCount: countFeedbackItems(normalized.feedbacks || [])
+    };
+  });
 }
 
 async function getExtractorById(userId, extractorId) {
@@ -614,15 +695,16 @@ async function getExtractorById(userId, extractorId) {
     if (!isOwnedByUser(existing, userId)) {
       return null;
     }
-    return existing;
+    return withNormalizedFeedbacks(existing);
   }
 
-  return getEntity(TABLES.extractors, userId, extractorId);
+  const extractor = await getEntity(TABLES.extractors, userId, extractorId);
+  return withNormalizedFeedbacks(extractor);
 }
 
 async function updateExtractor(userId, extractorId, payload) {
   if (useMemoryStore()) {
-    const existing = extractorsById.get(extractorId);
+    const existing = withNormalizedFeedbacks(extractorsById.get(extractorId));
 
     if (!isOwnedByUser(existing, userId)) {
       return null;
@@ -643,7 +725,7 @@ async function updateExtractor(userId, extractorId, payload) {
     return updated;
   }
 
-  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+  const existing = withNormalizedFeedbacks(await getEntity(TABLES.extractors, userId, extractorId));
 
   if (!existing) {
     return null;
@@ -668,7 +750,7 @@ async function updateExtractor(userId, extractorId, payload) {
       schema: nextSchema,
       holdAllDocuments: nextHold,
       heldDocuments: existing.heldDocuments || [],
-      feedbacks: existing.feedbacks || [],
+      feedbacks: normalizeFeedbackGroups(existing.feedbacks || []),
       nodeUsages: nextNodeUsages
     },
     new Date().toISOString()
@@ -705,57 +787,34 @@ async function deleteExtractor(userId, extractorId) {
   return { success: true };
 }
 
-async function addExtractorFeedback(userId, extractorId, payload) {
+async function createExtractorFeedbackGroup(userId, extractorId, payload) {
+  const now = new Date().toISOString();
+
   if (useMemoryStore()) {
-    const existing = extractorsById.get(extractorId);
+    const existing = withNormalizedFeedbacks(extractorsById.get(extractorId));
 
     if (!isOwnedByUser(existing, userId)) {
       return null;
     }
 
-    const feedback = {
-      id: payload.id || randomUUID(),
-      documentId: payload.documentId || null,
-      document: payload.document || null,
-      documentSummary: payload.documentSummary || null,
-      embedding: payload.embedding || null,
-      storageBucket: payload.storageBucket || null,
-      storagePath: payload.storagePath || null,
-      targetType: payload.targetType || null,
-      targetPath: payload.targetPath || null,
-      feedbackText: payload.feedbackText || '',
-      createdAt: new Date().toISOString()
-    };
-
+    const feedbackGroup = buildFeedbackGroup(payload, now);
     const updated = {
       ...existing,
-      feedbacks: [...existing.feedbacks, feedback],
-      updatedAt: new Date().toISOString()
+      feedbacks: [...(existing.feedbacks || []), feedbackGroup],
+      updatedAt: now
     };
 
     extractorsById.set(extractorId, updated);
-    return feedback;
+    return feedbackGroup;
   }
 
-  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+  const existing = withNormalizedFeedbacks(await getEntity(TABLES.extractors, userId, extractorId));
 
   if (!existing) {
     return null;
   }
 
-  const feedback = {
-    id: payload.id || randomUUID(),
-    documentId: payload.documentId || null,
-    document: payload.document || null,
-    documentSummary: payload.documentSummary || null,
-    embedding: payload.embedding || null,
-    storageBucket: payload.storageBucket || null,
-    storagePath: payload.storagePath || null,
-    targetType: payload.targetType || null,
-    targetPath: payload.targetPath || null,
-    feedbackText: payload.feedbackText || '',
-    createdAt: new Date().toISOString()
-  };
+  const feedbackGroup = buildFeedbackGroup(payload, now);
 
   await updateEntity(
     TABLES.extractors,
@@ -766,26 +825,108 @@ async function addExtractorFeedback(userId, extractorId, payload) {
       schema: existing.schema,
       holdAllDocuments: existing.holdAllDocuments,
       heldDocuments: existing.heldDocuments || [],
-      feedbacks: [...(existing.feedbacks || []), feedback],
+      feedbacks: [...(existing.feedbacks || []), feedbackGroup],
       nodeUsages: existing.nodeUsages || []
     },
-    new Date().toISOString()
+    now
   );
 
-  return feedback;
+  return feedbackGroup;
 }
 
-async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
+async function appendExtractorFeedbackItem(userId, extractorId, feedbackGroupId, payload) {
+  if (!feedbackGroupId) {
+    return { success: false, reason: 'group_required' };
+  }
+
+  const now = new Date().toISOString();
+
   if (useMemoryStore()) {
-    const existing = extractorsById.get(extractorId);
+    const existing = withNormalizedFeedbacks(extractorsById.get(extractorId));
 
     if (!isOwnedByUser(existing, userId)) {
       return null;
     }
 
     const feedbacks = existing.feedbacks || [];
-    const removedFeedback = feedbacks.find((item) => item.id === feedbackId) || null;
-    const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
+    const index = feedbacks.findIndex((group) => group.id === feedbackGroupId);
+
+    if (index < 0) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const group = feedbacks[index];
+    const nextItem = buildFeedbackItem(payload, now);
+    const updatedGroup = {
+      ...group,
+      feedbackItems: [...(group.feedbackItems || []), nextItem],
+      updatedAt: now
+    };
+    const nextFeedbacks = [...feedbacks];
+    nextFeedbacks[index] = updatedGroup;
+
+    const updated = {
+      ...existing,
+      feedbacks: nextFeedbacks,
+      updatedAt: now
+    };
+
+    extractorsById.set(extractorId, updated);
+    return { success: true, feedbackGroup: updatedGroup };
+  }
+
+  const existing = withNormalizedFeedbacks(await getEntity(TABLES.extractors, userId, extractorId));
+
+  if (!existing) {
+    return null;
+  }
+
+  const feedbacks = existing.feedbacks || [];
+  const index = feedbacks.findIndex((group) => group.id === feedbackGroupId);
+
+  if (index < 0) {
+    return { success: false, reason: 'not_found' };
+  }
+
+  const group = feedbacks[index];
+  const nextItem = buildFeedbackItem(payload, now);
+  const updatedGroup = {
+    ...group,
+    feedbackItems: [...(group.feedbackItems || []), nextItem],
+    updatedAt: now
+  };
+  const nextFeedbacks = [...feedbacks];
+  nextFeedbacks[index] = updatedGroup;
+
+  await updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: existing.name,
+      schema: existing.schema,
+      holdAllDocuments: existing.holdAllDocuments,
+      heldDocuments: existing.heldDocuments || [],
+      feedbacks: nextFeedbacks,
+      nodeUsages: existing.nodeUsages || []
+    },
+    now
+  );
+
+  return { success: true, feedbackGroup: updatedGroup };
+}
+
+async function deleteExtractorFeedback(userId, extractorId, feedbackGroupId) {
+  if (useMemoryStore()) {
+    const existing = withNormalizedFeedbacks(extractorsById.get(extractorId));
+
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const feedbacks = existing.feedbacks || [];
+    const removedFeedback = feedbacks.find((item) => item.id === feedbackGroupId) || null;
+    const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackGroupId);
 
     if (nextFeedbacks.length === feedbacks.length) {
       return { success: false, reason: 'not_found' };
@@ -801,15 +942,15 @@ async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
     return { success: true, feedback: removedFeedback };
   }
 
-  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+  const existing = withNormalizedFeedbacks(await getEntity(TABLES.extractors, userId, extractorId));
 
   if (!existing) {
     return null;
   }
 
   const feedbacks = existing.feedbacks || [];
-  const removedFeedback = feedbacks.find((item) => item.id === feedbackId) || null;
-  const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
+  const removedFeedback = feedbacks.find((item) => item.id === feedbackGroupId) || null;
+  const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackGroupId);
 
   if (nextFeedbacks.length === feedbacks.length) {
     return { success: false, reason: 'not_found' };
@@ -878,7 +1019,7 @@ async function holdDocumentInExtractor(userId, extractorId, payload) {
       schema: existing.schema,
       holdAllDocuments: existing.holdAllDocuments,
       heldDocuments: [...(existing.heldDocuments || []), heldDocument],
-      feedbacks: existing.feedbacks || [],
+      feedbacks: normalizeFeedbackGroups(existing.feedbacks || []),
       nodeUsages: existing.nodeUsages || []
     },
     new Date().toISOString()
@@ -950,7 +1091,7 @@ async function sendOutFromExtractor(userId, extractorId, documentIds) {
       schema: existing.schema,
       holdAllDocuments: existing.holdAllDocuments,
       heldDocuments: remainingDocuments,
-      feedbacks: existing.feedbacks || [],
+      feedbacks: normalizeFeedbackGroups(existing.feedbacks || []),
       nodeUsages: existing.nodeUsages || []
     },
     new Date().toISOString()
@@ -967,7 +1108,8 @@ function resetConfigServiceStores() {
 }
 
 module.exports = {
-  addExtractorFeedback,
+  appendExtractorFeedbackItem,
+  createExtractorFeedbackGroup,
   deleteExtractorFeedback,
   createCategorisationPrompt,
   createDocumentFolder,

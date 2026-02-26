@@ -782,6 +782,11 @@ hr {
   margin-bottom: 0.8rem;
 }
 
+.stacked-meta {
+  display: grid;
+  gap: 0.3rem;
+}
+
 .document-preview {
   border: 1px solid var(--line);
   background: #ffffff;
@@ -791,6 +796,8 @@ hr {
   display: grid;
   gap: 0.6rem;
   min-height: 320px;
+  max-height: 70vh;
+  overflow: auto;
 }
 
 .document-preview img {
@@ -814,6 +821,7 @@ hr {
   width: 100%;
   border-radius: var(--radius-sm);
   border: 1px solid var(--line);
+  background: #ffffff;
 }
 
 .page-controls {
@@ -839,10 +847,17 @@ hr {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .feedback-column {
   height: fit-content;
+}
+
+.feedback-sticky {
+  position: sticky;
+  top: 1.2rem;
+  align-self: start;
 }
 
 .preview-table {
@@ -889,6 +904,14 @@ hr {
   background: #ffffff;
 }
 
+.table-preview-header {
+  margin-bottom: 0.4rem;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
 .cell-select {
   width: 100%;
   text-align: left;
@@ -911,6 +934,76 @@ hr {
   border-top: 1px solid var(--line);
 }
 
+.feedback-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.38);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  z-index: 40;
+}
+
+.feedback-dialog {
+  width: min(560px, 100%);
+  background: #ffffff;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 1rem;
+  padding: 1.2rem 1.4rem;
+}
+
+.feedback-dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.feedback-dialog-header h3 {
+  margin: 0;
+}
+
+.feedback-dialog-header p {
+  margin: 0.2rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+}
+
+.feedback-dialog-body {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.feedback-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.feedback-target {
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.6rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: #f8fafc;
+}
+
+.pdf-fallback {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.pdf-object {
+  width: 100%;
+  min-height: 320px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
 @media (max-width: 980px) {
   .feedback-toolbar {
     flex-direction: column;
@@ -919,6 +1012,10 @@ hr {
 
   .feedback-grid {
     grid-template-columns: 1fr;
+  }
+
+  .feedback-sticky {
+    position: static;
   }
 }
 

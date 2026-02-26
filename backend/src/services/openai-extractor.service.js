@@ -126,7 +126,9 @@ function formatFeedbackContext(feedbacks) {
 
   return feedbacks
     .map((feedback) => {
-      return `- Target: ${feedback.targetType || 'field'} ${feedback.targetPath || ''}\n  Feedback: ${feedback.feedbackText}`;
+      const target = `${feedback.targetType || 'field'} ${feedback.targetPath || ''}`.trim();
+      const documentLabel = feedback.documentId ? ` (from ${feedback.documentId})` : '';
+      return `- Target: ${target}${documentLabel}\n  Feedback: ${feedback.feedbackText || ''}`;
     })
     .join('\n');
 }

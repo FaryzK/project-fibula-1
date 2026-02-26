@@ -1,5 +1,5 @@
 const { randomUUID } = require('crypto');
-const { addExtractorFeedback, getExtractorById } = require('./config-service-nodes.service');
+const { createExtractorFeedbackGroup, getExtractorById } = require('./config-service-nodes.service');
 const {
   generateDocumentSummary,
   generateTextEmbedding,
@@ -30,21 +30,30 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-function selectRelevantFeedbacks(feedbacks, embedding, limit = 3) {
-  if (!embedding || !feedbacks.length) {
+function selectRelevantFeedbackGroups(feedbackGroups, embedding, limit = 3) {
+  if (!embedding || !feedbackGroups.length) {
     return [];
   }
 
-  const scored = feedbacks
-    .map((feedback) => ({
-      feedback,
-      score: cosineSimilarity(embedding, feedback.embedding)
+  const scored = feedbackGroups
+    .map((group) => ({
+      group,
+      score: cosineSimilarity(embedding, group.embedding)
     }))
     .filter((item) => item.score !== null)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 
-  return scored.map((item) => item.feedback);
+  return scored.map((item) => item.group);
+}
+
+function flattenFeedbackItems(feedbackGroups) {
+  return feedbackGroups.flatMap((group) =>
+    (group.feedbackItems || []).map((item) => ({
+      ...item,
+      documentId: group.documentId || null
+    }))
+  );
 }
 
 function normalizeExtractionResult(extraction, schema) {
@@ -86,8 +95,8 @@ async function runExtractorInference({ userId, extractorId, file }) {
   });
   const embedding = await generateTextEmbedding(summary);
 
-  const feedbacks = (extractor.feedbacks || []).filter((feedback) => Array.isArray(feedback.embedding));
-  const relevantFeedbacks = selectRelevantFeedbacks(feedbacks, embedding, 3);
+  const feedbackGroups = (extractor.feedbacks || []).filter((group) => Array.isArray(group.embedding));
+  const relevantGroups = selectRelevantFeedbackGroups(feedbackGroups, embedding, 3);
 
   const extraction = await runExtraction({
     buffer: file.buffer,
@@ -95,12 +104,12 @@ async function runExtractorInference({ userId, extractorId, file }) {
     filename: file.originalname,
     fileId,
     schema: extractor.schema || { headerFields: [], tableTypes: [] },
-    feedbacks: relevantFeedbacks
+    feedbacks: flattenFeedbackItems(relevantGroups)
   });
 
   return {
     extraction: normalizeExtractionResult(extraction, extractor.schema || { headerFields: [], tableTypes: [] }),
-    usedFeedbackIds: relevantFeedbacks.map((item) => item.id),
+    usedFeedbackIds: relevantGroups.map((item) => item.id),
     documentSummary: summary
   };
 }
@@ -119,7 +128,7 @@ async function addTrainingFeedbackWithDocument({
     return null;
   }
 
-  const feedbackId = randomUUID();
+  const feedbackGroupId = randomUUID();
   const fileId =
     file.mimetype === 'application/pdf'
       ? await uploadPdfForInference({ buffer: file.buffer, filename: file.originalname })
@@ -135,14 +144,14 @@ async function addTrainingFeedbackWithDocument({
   const storage = await uploadFeedbackDocument({
     userId,
     extractorId,
-    feedbackId,
+    feedbackId: feedbackGroupId,
     fileBuffer: file.buffer,
     fileName: file.originalname,
     mimeType: file.mimetype
   });
 
-  const feedback = await addExtractorFeedback(userId, extractorId, {
-    id: feedbackId,
+  const feedbackGroup = await createExtractorFeedbackGroup(userId, extractorId, {
+    groupId: feedbackGroupId,
     documentId: documentId || file.originalname || null,
     document: {
       fileName: file.originalname || null,
@@ -158,7 +167,7 @@ async function addTrainingFeedbackWithDocument({
     feedbackText
   });
 
-  return feedback;
+  return feedbackGroup;
 }
 
 module.exports = {
