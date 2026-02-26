@@ -31,6 +31,7 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Use plain JavaScript only | Match team constraint | No TypeScript setup |
 | 2026-02-26 | Supabase Auth with Google OAuth only | Product requirement | Simplifies auth providers |
 | 2026-02-26 | In-process workflow execution for MVP | Faster delivery | Queueing deferred post-MVP |
+| 2026-02-26 | Initialize auth as loading and subscribe to `onAuthStateChange` | Avoid OAuth callback race where UI stayed on `/login` before session hydration completed | Reliable redirect to `/app` after Google sign-in |
 
 ## Open Questions
 - Is the marketing page part of MVP or post-MVP?
@@ -58,6 +59,8 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Added webhook trigger route and HTTP/webhook node execution support with canvas config menus | Codex | Phase 7 |
 | 2026-02-26 | Added readiness checks, API JSON error handling, and stricter webhook execution mode validation | Codex | Phase 8 |
 | 2026-02-26 | Phase 8 hardening branch merged to `main` | Codex | Phase 8 |
+| 2026-02-26 | Fixed OAuth redirect/session sync by adding explicit `redirectTo=/app` and auth state listener | Codex | Fix |
+| 2026-02-26 | Fixed login-page stall by keeping login route in loading state until auth hydration completes | Codex | Fix |
 
 ## Update Rule
 After each completed feature/phase PR:
