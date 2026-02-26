@@ -4,7 +4,7 @@ Project execution memory for Project Fibula.
 
 ## Current Snapshot
 - Date initialized: 2026-02-26
-- Status: Phase 4 core nodes in progress
+- Status: Phase 5 config/service nodes in progress
 - Owner: Faryz
 
 ## Phase Status
@@ -14,8 +14,8 @@ Project execution memory for Project Fibula.
 | Phase 1 | Auth (Supabase Google OAuth), protected routes, user profile basics | Completed | codex/feat/phase-1-auth | 2026-02-26 | Merged to `main` via PR #2 |
 | Phase 2 | Landing page shell + workflow CRUD | Completed | codex/feat/phase-2-landing-workflow-crud | 2026-02-26 | Merged to `main` via PR #5 |
 | Phase 3 | Workflow canvas foundation (React Flow interactions) | Completed | codex/feat/phase-3-canvas-foundation | 2026-02-26 | Merged to `main` via PR #7 |
-| Phase 4 | Core nodes: Manual Upload, IF, SWITCH (+fallback), Set Value | In Progress | codex/feat/phase-4-core-nodes | 2026-02-26 | Added core node configs, dynamic ports, preview evaluation, and backend execution service tests |
-| Phase 5 | Config/service nodes: Splitting, Categorisation, Document Folder, Extractor | Not Started | - | 2026-02-26 | |
+| Phase 4 | Core nodes: Manual Upload, IF, SWITCH (+fallback), Set Value | Completed | codex/feat/phase-4-core-nodes | 2026-02-26 | Merged to `main` via PR #8 |
+| Phase 5 | Config/service nodes: Splitting, Categorisation, Document Folder, Extractor | In Progress | codex/feat/phase-5-config-service-nodes | 2026-02-26 | Added backend APIs and landing tab CRUD UIs for splitting prompts, categorisation prompts, document folders, and extractors |
 | Phase 6 | Data Mapper + Reconciliation | Not Started | - | 2026-02-26 | |
 | Phase 7 | Webhook + HTTP nodes | Not Started | - | 2026-02-26 | |
 | Phase 8 | Hardening: tests, error handling, deployment readiness | Not Started | - | 2026-02-26 | |
@@ -52,6 +52,7 @@ Project execution memory for Project Fibula.
 | 2026-02-26 | Added `/api/workflows` CRUD, landing tab shell, workflow list actions, and workflow canvas placeholder route | Codex | Phase 2 |
 | 2026-02-26 | Replaced canvas placeholder with React Flow foundation and added canvas utility unit tests | Codex | Phase 3 |
 | 2026-02-26 | Added core node execution service tests and core node config/preview behavior in canvas node menu | Codex | Phase 4 |
+| 2026-02-26 | Added config/service node APIs and connected landing tabs for splitting/categorisation/folders/extractors | Codex | Phase 5 |
 
 ## Update Rule
 After each completed feature/phase PR:

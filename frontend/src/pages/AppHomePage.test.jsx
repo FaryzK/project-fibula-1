@@ -11,6 +11,12 @@ import {
   listWorkflows,
   updateWorkflow
 } from '../services/workflowApi';
+import {
+  listCategorisationPrompts,
+  listDocumentFolders,
+  listExtractors,
+  listSplittingPrompts
+} from '../services/configServiceNodesApi';
 
 vi.mock('../services/workflowApi', () => ({
   listWorkflows: vi.fn(),
@@ -19,9 +25,33 @@ vi.mock('../services/workflowApi', () => ({
   deleteWorkflow: vi.fn()
 }));
 
+vi.mock('../services/configServiceNodesApi', () => ({
+  listSplittingPrompts: vi.fn(),
+  createSplittingPrompt: vi.fn(),
+  updateSplittingPrompt: vi.fn(),
+  deleteSplittingPrompt: vi.fn(),
+  listCategorisationPrompts: vi.fn(),
+  createCategorisationPrompt: vi.fn(),
+  updateCategorisationPrompt: vi.fn(),
+  deleteCategorisationPrompt: vi.fn(),
+  listDocumentFolders: vi.fn(),
+  createDocumentFolder: vi.fn(),
+  updateDocumentFolder: vi.fn(),
+  deleteDocumentFolder: vi.fn(),
+  sendOutFromFolder: vi.fn(),
+  listExtractors: vi.fn(),
+  createExtractor: vi.fn(),
+  updateExtractor: vi.fn(),
+  deleteExtractor: vi.fn()
+}));
+
 describe('AppHomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listSplittingPrompts.mockResolvedValue([]);
+    listCategorisationPrompts.mockResolvedValue([]);
+    listDocumentFolders.mockResolvedValue([]);
+    listExtractors.mockResolvedValue([]);
 
     useAuthStore.setState({
       user: { id: 'user_1', email: 'user@example.com' },
@@ -69,7 +99,7 @@ describe('AppHomePage', () => {
     const docFolderTab = await screen.findByRole('button', { name: /document folders/i });
     fireEvent.click(docFolderTab);
 
-    expect(screen.getByText(/document folders content coming in phase 5/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /document folders/i })).toBeTruthy();
   });
 
   it('supports create, publish and delete actions', async () => {

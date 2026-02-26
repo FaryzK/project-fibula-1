@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useWorkflowStore } from '../stores/workflowStore';
+import { CategorisationPromptsTab } from './tabs/CategorisationPromptsTab';
+import { DocumentFoldersTab } from './tabs/DocumentFoldersTab';
+import { ExtractorsTab } from './tabs/ExtractorsTab';
+import { SplittingPromptsTab } from './tabs/SplittingPromptsTab';
 
 const TABS = [
   { key: 'workflow', label: 'Workflow' },
@@ -159,7 +163,7 @@ export function AppHomePage() {
     }
 
     if (activeTab === 'document-folders') {
-      return <EmptyTabMessage text="Document folders content coming in Phase 5." />;
+      return <DocumentFoldersTab />;
     }
 
     if (activeTab === 'reconciliation') {
@@ -167,15 +171,15 @@ export function AppHomePage() {
     }
 
     if (activeTab === 'document-splitting') {
-      return <EmptyTabMessage text="Document splitting content coming in Phase 5." />;
+      return <SplittingPromptsTab />;
     }
 
     if (activeTab === 'document-categorisation') {
-      return <EmptyTabMessage text="Document categorisation content coming in Phase 5." />;
+      return <CategorisationPromptsTab />;
     }
 
     if (activeTab === 'extractors') {
-      return <EmptyTabMessage text="Extractor content coming in Phase 5." />;
+      return <ExtractorsTab />;
     }
 
     return <EmptyTabMessage text="Data mapper content coming in Phase 6." />;
