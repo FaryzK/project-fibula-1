@@ -1,9 +1,28 @@
 const { randomUUID } = require('crypto');
+const { ensureSchema, isDatabaseEnabled, query } = require('../db/postgres');
+const {
+  deleteEntity,
+  getEntity,
+  insertEntity,
+  listEntities,
+  updateEntity
+} = require('../db/entity-store');
 
 const dataMapSetsById = new Map();
 const dataMapRulesById = new Map();
 const reconciliationRulesById = new Map();
 const matchingSetsByRuleId = new Map();
+
+const TABLES = {
+  dataMapSets: 'data_map_sets',
+  dataMapRules: 'data_map_rules',
+  reconciliationRules: 'reconciliation_rules',
+  matchingSets: 'matching_sets'
+};
+
+function useMemoryStore() {
+  return !isDatabaseEnabled();
+}
 
 function listOwnedItems(store, userId) {
   return Array.from(store.values())
@@ -11,11 +30,36 @@ function listOwnedItems(store, userId) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-function listDataMapSets(userId) {
-  return listOwnedItems(dataMapSetsById, userId);
+function toIsoString(value) {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  return new Date(value).toISOString();
 }
 
-function createDataMapSet(userId, payload) {
+function normalizeMatchingSetRow(row) {
+  const data = row?.data && typeof row.data === 'object' ? row.data : {};
+
+  return {
+    id: row.id,
+    userId: row.user_id,
+    ruleId: row.rule_id,
+    ...data,
+    createdAt: toIsoString(row.created_at),
+    updatedAt: toIsoString(row.updated_at)
+  };
+}
+
+async function listDataMapSets(userId) {
+  if (useMemoryStore()) {
+    return listOwnedItems(dataMapSetsById, userId);
+  }
+
+  return listEntities(TABLES.dataMapSets, userId);
+}
+
+async function createDataMapSet(userId, payload) {
   const now = new Date().toISOString();
   const dataMapSet = {
     id: randomUUID(),
@@ -27,57 +71,119 @@ function createDataMapSet(userId, payload) {
     updatedAt: now
   };
 
-  dataMapSetsById.set(dataMapSet.id, dataMapSet);
-  return dataMapSet;
+  if (useMemoryStore()) {
+    dataMapSetsById.set(dataMapSet.id, dataMapSet);
+    return dataMapSet;
+  }
+
+  return insertEntity(TABLES.dataMapSets, {
+    id: dataMapSet.id,
+    userId,
+    data: {
+      name: dataMapSet.name,
+      headers: dataMapSet.headers,
+      records: dataMapSet.records
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function updateDataMapSet(userId, setId, payload) {
-  const existing = dataMapSetsById.get(setId);
+async function updateDataMapSet(userId, setId, payload) {
+  if (useMemoryStore()) {
+    const existing = dataMapSetsById.get(setId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.headers !== undefined ? { headers: payload.headers } : {}),
+      ...(payload.records !== undefined ? { records: payload.records } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    dataMapSetsById.set(setId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.dataMapSets, userId, setId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.headers !== undefined ? { headers: payload.headers } : {}),
-    ...(payload.records !== undefined ? { records: payload.records } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextHeaders = payload.headers !== undefined ? payload.headers : existing.headers || [];
+  const nextRecords = payload.records !== undefined ? payload.records : existing.records || [];
 
-  dataMapSetsById.set(setId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.dataMapSets,
+    userId,
+    setId,
+    {
+      name: nextName,
+      headers: nextHeaders,
+      records: nextRecords
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteDataMapSet(userId, setId) {
-  const existing = dataMapSetsById.get(setId);
+async function deleteDataMapSet(userId, setId) {
+  if (useMemoryStore()) {
+    const existing = dataMapSetsById.get(setId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const hasUsage = Array.from(dataMapRulesById.values()).some((rule) => {
+      if (rule.userId !== userId) {
+        return false;
+      }
+
+      return (rule.lookups || []).some((lookup) => lookup.setId === setId);
+    });
+
+    if (hasUsage) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    dataMapSetsById.delete(setId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.dataMapSets, userId, setId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
-  const hasUsage = Array.from(dataMapRulesById.values()).some((rule) => {
-    if (rule.userId !== userId) {
-      return false;
-    }
-
-    return (rule.lookups || []).some((lookup) => lookup.setId === setId);
-  });
+  const rules = await listEntities(TABLES.dataMapRules, userId);
+  const hasUsage = rules.some((rule) =>
+    (rule.lookups || []).some((lookup) => lookup.setId === setId)
+  );
 
   if (hasUsage) {
     return { success: false, reason: 'in_use' };
   }
 
-  dataMapSetsById.delete(setId);
+  await deleteEntity(TABLES.dataMapSets, userId, setId);
   return { success: true };
 }
 
-function listDataMapRules(userId) {
-  return listOwnedItems(dataMapRulesById, userId);
+async function listDataMapRules(userId) {
+  if (useMemoryStore()) {
+    return listOwnedItems(dataMapRulesById, userId);
+  }
+
+  return listEntities(TABLES.dataMapRules, userId);
 }
 
-function createDataMapRule(userId, payload) {
+async function createDataMapRule(userId, payload) {
   const now = new Date().toISOString();
   const rule = {
     id: randomUUID(),
@@ -91,35 +197,96 @@ function createDataMapRule(userId, payload) {
     updatedAt: now
   };
 
-  dataMapRulesById.set(rule.id, rule);
-  return rule;
+  if (useMemoryStore()) {
+    dataMapRulesById.set(rule.id, rule);
+    return rule;
+  }
+
+  return insertEntity(TABLES.dataMapRules, {
+    id: rule.id,
+    userId,
+    data: {
+      name: rule.name,
+      extractorName: rule.extractorName,
+      mapTargets: rule.mapTargets,
+      lookups: rule.lookups,
+      nodeUsages: rule.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function updateDataMapRule(userId, ruleId, payload) {
-  const existing = dataMapRulesById.get(ruleId);
+async function updateDataMapRule(userId, ruleId, payload) {
+  if (useMemoryStore()) {
+    const existing = dataMapRulesById.get(ruleId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.extractorName !== undefined ? { extractorName: payload.extractorName } : {}),
+      ...(payload.mapTargets !== undefined ? { mapTargets: payload.mapTargets } : {}),
+      ...(payload.lookups !== undefined ? { lookups: payload.lookups } : {}),
+      ...(payload.nodeUsages !== undefined ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    dataMapRulesById.set(ruleId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.dataMapRules, userId, ruleId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.extractorName !== undefined ? { extractorName: payload.extractorName } : {}),
-    ...(payload.mapTargets !== undefined ? { mapTargets: payload.mapTargets } : {}),
-    ...(payload.lookups !== undefined ? { lookups: payload.lookups } : {}),
-    ...(payload.nodeUsages !== undefined ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextExtractorName =
+    payload.extractorName !== undefined ? payload.extractorName : existing.extractorName;
+  const nextMapTargets = payload.mapTargets !== undefined ? payload.mapTargets : existing.mapTargets;
+  const nextLookups = payload.lookups !== undefined ? payload.lookups : existing.lookups;
+  const nextNodeUsages =
+    payload.nodeUsages !== undefined ? payload.nodeUsages : existing.nodeUsages || [];
 
-  dataMapRulesById.set(ruleId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.dataMapRules,
+    userId,
+    ruleId,
+    {
+      name: nextName,
+      extractorName: nextExtractorName,
+      mapTargets: nextMapTargets,
+      lookups: nextLookups,
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteDataMapRule(userId, ruleId) {
-  const existing = dataMapRulesById.get(ruleId);
+async function deleteDataMapRule(userId, ruleId) {
+  if (useMemoryStore()) {
+    const existing = dataMapRulesById.get(ruleId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if ((existing.nodeUsages || []).length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    dataMapRulesById.delete(ruleId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.dataMapRules, userId, ruleId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -127,15 +294,19 @@ function deleteDataMapRule(userId, ruleId) {
     return { success: false, reason: 'in_use' };
   }
 
-  dataMapRulesById.delete(ruleId);
+  await deleteEntity(TABLES.dataMapRules, userId, ruleId);
   return { success: true };
 }
 
-function listReconciliationRules(userId) {
-  return listOwnedItems(reconciliationRulesById, userId);
+async function listReconciliationRules(userId) {
+  if (useMemoryStore()) {
+    return listOwnedItems(reconciliationRulesById, userId);
+  }
+
+  return listEntities(TABLES.reconciliationRules, userId);
 }
 
-function createReconciliationRule(userId, payload) {
+async function createReconciliationRule(userId, payload) {
   const now = new Date().toISOString();
   const rule = {
     id: randomUUID(),
@@ -149,36 +320,102 @@ function createReconciliationRule(userId, payload) {
     updatedAt: now
   };
 
-  reconciliationRulesById.set(rule.id, rule);
-  matchingSetsByRuleId.set(rule.id, []);
-  return rule;
+  if (useMemoryStore()) {
+    reconciliationRulesById.set(rule.id, rule);
+    matchingSetsByRuleId.set(rule.id, []);
+    return rule;
+  }
+
+  return insertEntity(TABLES.reconciliationRules, {
+    id: rule.id,
+    userId,
+    data: {
+      name: rule.name,
+      anchorExtractor: rule.anchorExtractor,
+      targetExtractors: rule.targetExtractors,
+      variations: rule.variations,
+      nodeUsages: rule.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function updateReconciliationRule(userId, ruleId, payload) {
-  const existing = reconciliationRulesById.get(ruleId);
+async function updateReconciliationRule(userId, ruleId, payload) {
+  if (useMemoryStore()) {
+    const existing = reconciliationRulesById.get(ruleId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.anchorExtractor !== undefined ? { anchorExtractor: payload.anchorExtractor } : {}),
+      ...(payload.targetExtractors !== undefined
+        ? { targetExtractors: payload.targetExtractors }
+        : {}),
+      ...(payload.variations !== undefined ? { variations: payload.variations } : {}),
+      ...(payload.nodeUsages !== undefined ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    reconciliationRulesById.set(ruleId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.reconciliationRules, userId, ruleId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.anchorExtractor !== undefined ? { anchorExtractor: payload.anchorExtractor } : {}),
-    ...(payload.targetExtractors !== undefined ? { targetExtractors: payload.targetExtractors } : {}),
-    ...(payload.variations !== undefined ? { variations: payload.variations } : {}),
-    ...(payload.nodeUsages !== undefined ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextAnchor =
+    payload.anchorExtractor !== undefined ? payload.anchorExtractor : existing.anchorExtractor;
+  const nextTargets =
+    payload.targetExtractors !== undefined ? payload.targetExtractors : existing.targetExtractors;
+  const nextVariations =
+    payload.variations !== undefined ? payload.variations : existing.variations;
+  const nextNodeUsages =
+    payload.nodeUsages !== undefined ? payload.nodeUsages : existing.nodeUsages || [];
 
-  reconciliationRulesById.set(ruleId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.reconciliationRules,
+    userId,
+    ruleId,
+    {
+      name: nextName,
+      anchorExtractor: nextAnchor,
+      targetExtractors: nextTargets,
+      variations: nextVariations,
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteReconciliationRule(userId, ruleId) {
-  const existing = reconciliationRulesById.get(ruleId);
+async function deleteReconciliationRule(userId, ruleId) {
+  if (useMemoryStore()) {
+    const existing = reconciliationRulesById.get(ruleId);
 
-  if (!existing || existing.userId !== userId) {
+    if (!existing || existing.userId !== userId) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if ((existing.nodeUsages || []).length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    reconciliationRulesById.delete(ruleId);
+    matchingSetsByRuleId.delete(ruleId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.reconciliationRules, userId, ruleId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -186,33 +423,45 @@ function deleteReconciliationRule(userId, ruleId) {
     return { success: false, reason: 'in_use' };
   }
 
-  reconciliationRulesById.delete(ruleId);
-  matchingSetsByRuleId.delete(ruleId);
+  await deleteEntity(TABLES.reconciliationRules, userId, ruleId);
   return { success: true };
 }
 
-function ensureOwnedRule(userId, ruleId) {
-  const rule = reconciliationRulesById.get(ruleId);
+async function ensureOwnedRule(userId, ruleId) {
+  if (useMemoryStore()) {
+    const rule = reconciliationRulesById.get(ruleId);
 
-  if (!rule || rule.userId !== userId) {
-    return null;
+    if (!rule || rule.userId !== userId) {
+      return null;
+    }
+
+    return rule;
   }
 
-  return rule;
+  return getEntity(TABLES.reconciliationRules, userId, ruleId);
 }
 
-function listMatchingSets(userId, ruleId) {
-  const rule = ensureOwnedRule(userId, ruleId);
+async function listMatchingSets(userId, ruleId) {
+  const rule = await ensureOwnedRule(userId, ruleId);
 
   if (!rule) {
     return null;
   }
 
-  return matchingSetsByRuleId.get(ruleId) || [];
+  if (useMemoryStore()) {
+    return matchingSetsByRuleId.get(ruleId) || [];
+  }
+
+  return listEntities(TABLES.matchingSets, userId, {
+    where: 'rule_id = $2',
+    params: [ruleId],
+    extraSelect: 'rule_id',
+    rowExtras: (row) => ({ ruleId: row.rule_id })
+  });
 }
 
-function createMatchingSet(userId, ruleId, payload) {
-  const rule = ensureOwnedRule(userId, ruleId);
+async function createMatchingSet(userId, ruleId, payload) {
+  const rule = await ensureOwnedRule(userId, ruleId);
 
   if (!rule) {
     return null;
@@ -230,41 +479,93 @@ function createMatchingSet(userId, ruleId, payload) {
     updatedAt: new Date().toISOString()
   };
 
-  const current = matchingSetsByRuleId.get(ruleId) || [];
-  matchingSetsByRuleId.set(ruleId, [...current, matchingSet]);
-  return matchingSet;
+  if (useMemoryStore()) {
+    const current = matchingSetsByRuleId.get(ruleId) || [];
+    matchingSetsByRuleId.set(ruleId, [...current, matchingSet]);
+    return matchingSet;
+  }
+
+  return insertEntity(TABLES.matchingSets, {
+    id: matchingSet.id,
+    userId,
+    data: {
+      anchorDocument: matchingSet.anchorDocument,
+      documents: matchingSet.documents,
+      comparisonRows: matchingSet.comparisonRows,
+      variationIndex: matchingSet.variationIndex,
+      status: matchingSet.status
+    },
+    createdAt: matchingSet.createdAt,
+    updatedAt: matchingSet.updatedAt
+  }, {
+    extraColumns: ['rule_id'],
+    extraValues: [ruleId],
+    extraSelect: 'rule_id',
+    rowExtras: (row) => ({ ruleId: row.rule_id })
+  });
 }
 
-function updateMatchingSetStatus(userId, ruleId, matchingSetId, status) {
-  const rule = ensureOwnedRule(userId, ruleId);
+async function updateMatchingSetStatus(userId, ruleId, matchingSetId, status) {
+  const rule = await ensureOwnedRule(userId, ruleId);
 
   if (!rule) {
     return null;
   }
 
-  const current = matchingSetsByRuleId.get(ruleId) || [];
-  let found = null;
+  if (useMemoryStore()) {
+    const current = matchingSetsByRuleId.get(ruleId) || [];
+    let found = null;
 
-  const next = current.map((item) => {
-    if (item.id !== matchingSetId) {
-      return item;
+    const next = current.map((item) => {
+      if (item.id !== matchingSetId) {
+        return item;
+      }
+
+      found = {
+        ...item,
+        status,
+        updatedAt: new Date().toISOString()
+      };
+
+      return found;
+    });
+
+    if (!found) {
+      return null;
     }
 
-    found = {
-      ...item,
-      status,
-      updatedAt: new Date().toISOString()
-    };
-
+    matchingSetsByRuleId.set(ruleId, next);
     return found;
-  });
+  }
 
-  if (!found) {
+  await ensureSchema();
+
+  const { rows } = await query(
+    'SELECT id, user_id, rule_id, data, created_at, updated_at FROM matching_sets WHERE id = $1 AND user_id = $2 AND rule_id = $3',
+    [matchingSetId, userId, ruleId]
+  );
+
+  if (!rows[0]) {
     return null;
   }
 
-  matchingSetsByRuleId.set(ruleId, next);
-  return found;
+  const existing = rows[0];
+  const nextData = {
+    ...(existing.data || {}),
+    status
+  };
+  const updatedAt = new Date().toISOString();
+
+  const updateResult = await query(
+    'UPDATE matching_sets SET data = $1, updated_at = $2 WHERE id = $3 AND user_id = $4 AND rule_id = $5 RETURNING id, user_id, rule_id, data, created_at, updated_at',
+    [nextData, updatedAt, matchingSetId, userId, ruleId]
+  );
+
+  if (!updateResult.rows[0]) {
+    return null;
+  }
+
+  return normalizeMatchingSetRow(updateResult.rows[0]);
 }
 
 function resetDataMapperReconciliationStore() {

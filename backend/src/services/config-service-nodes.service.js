@@ -1,9 +1,28 @@
 const { randomUUID } = require('crypto');
+const { isDatabaseEnabled } = require('../db/postgres');
+const {
+  deleteEntity,
+  getEntity,
+  insertEntity,
+  listEntities,
+  updateEntity
+} = require('../db/entity-store');
 
 const splittingPromptsById = new Map();
 const categorisationPromptsById = new Map();
 const documentFoldersById = new Map();
 const extractorsById = new Map();
+
+const TABLES = {
+  splittingPrompts: 'splitting_prompts',
+  categorisationPrompts: 'categorisation_prompts',
+  documentFolders: 'document_folders',
+  extractors: 'extractors'
+};
+
+function useMemoryStore() {
+  return !isDatabaseEnabled();
+}
 
 function isOwnedByUser(item, userId) {
   return item && item.userId === userId;
@@ -24,7 +43,7 @@ function listByOwner(store, userId) {
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-function createSplittingPrompt(userId, payload) {
+async function createSplittingPrompt(userId, payload) {
   const now = new Date().toISOString();
   const prompt = {
     id: randomUUID(),
@@ -37,42 +56,108 @@ function createSplittingPrompt(userId, payload) {
     updatedAt: now
   };
 
-  splittingPromptsById.set(prompt.id, prompt);
-  return prompt;
+  if (useMemoryStore()) {
+    splittingPromptsById.set(prompt.id, prompt);
+    return prompt;
+  }
+
+  return insertEntity(TABLES.splittingPrompts, {
+    id: prompt.id,
+    userId,
+    data: {
+      name: prompt.name,
+      instructions: prompt.instructions,
+      instructionsPreview: prompt.instructionsPreview,
+      nodeUsages: prompt.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function listSplittingPrompts(userId) {
-  return listByOwner(splittingPromptsById, userId);
+async function listSplittingPrompts(userId) {
+  if (useMemoryStore()) {
+    return listByOwner(splittingPromptsById, userId);
+  }
+
+  return listEntities(TABLES.splittingPrompts, userId);
 }
 
-function updateSplittingPrompt(userId, promptId, payload) {
-  const existing = splittingPromptsById.get(promptId);
+async function updateSplittingPrompt(userId, promptId, payload) {
+  if (useMemoryStore()) {
+    const existing = splittingPromptsById.get(promptId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.instructions !== undefined
+        ? {
+            instructions: payload.instructions,
+            instructionsPreview: toPreview(payload.instructions)
+          }
+        : {}),
+      ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    splittingPromptsById.set(promptId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.splittingPrompts, userId, promptId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.instructions !== undefined
-      ? {
-          instructions: payload.instructions,
-          instructionsPreview: toPreview(payload.instructions)
-        }
-      : {}),
-    ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextInstructions =
+    payload.instructions !== undefined ? payload.instructions : existing.instructions || '';
+  const nextPreview =
+    payload.instructions !== undefined
+      ? toPreview(payload.instructions)
+      : existing.instructionsPreview || toPreview(existing.instructions || '');
+  const nextNodeUsages = Array.isArray(payload.nodeUsages)
+    ? payload.nodeUsages
+    : existing.nodeUsages || [];
 
-  splittingPromptsById.set(promptId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.splittingPrompts,
+    userId,
+    promptId,
+    {
+      name: nextName,
+      instructions: nextInstructions,
+      instructionsPreview: nextPreview,
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteSplittingPrompt(userId, promptId) {
-  const existing = splittingPromptsById.get(promptId);
+async function deleteSplittingPrompt(userId, promptId) {
+  if (useMemoryStore()) {
+    const existing = splittingPromptsById.get(promptId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (existing.nodeUsages?.length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    splittingPromptsById.delete(promptId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.splittingPrompts, userId, promptId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -80,7 +165,7 @@ function deleteSplittingPrompt(userId, promptId) {
     return { success: false, reason: 'in_use' };
   }
 
-  splittingPromptsById.delete(promptId);
+  await deleteEntity(TABLES.splittingPrompts, userId, promptId);
   return { success: true };
 }
 
@@ -96,7 +181,7 @@ function validateCategorisationLabels(labels) {
   return null;
 }
 
-function createCategorisationPrompt(userId, payload) {
+async function createCategorisationPrompt(userId, payload) {
   const validationError = validateCategorisationLabels(payload.labels || []);
 
   if (validationError) {
@@ -114,18 +199,63 @@ function createCategorisationPrompt(userId, payload) {
     updatedAt: now
   };
 
-  categorisationPromptsById.set(prompt.id, prompt);
-  return { prompt };
+  if (useMemoryStore()) {
+    categorisationPromptsById.set(prompt.id, prompt);
+    return { prompt };
+  }
+
+  const saved = await insertEntity(TABLES.categorisationPrompts, {
+    id: prompt.id,
+    userId,
+    data: {
+      name: prompt.name,
+      labels: prompt.labels,
+      nodeUsages: prompt.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
+
+  return { prompt: saved };
 }
 
-function listCategorisationPrompts(userId) {
-  return listByOwner(categorisationPromptsById, userId);
+async function listCategorisationPrompts(userId) {
+  if (useMemoryStore()) {
+    return listByOwner(categorisationPromptsById, userId);
+  }
+
+  return listEntities(TABLES.categorisationPrompts, userId);
 }
 
-function updateCategorisationPrompt(userId, promptId, payload) {
-  const existing = categorisationPromptsById.get(promptId);
+async function updateCategorisationPrompt(userId, promptId, payload) {
+  if (useMemoryStore()) {
+    const existing = categorisationPromptsById.get(promptId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return { prompt: null };
+    }
+
+    const validationError = validateCategorisationLabels(payload.labels || existing.labels || []);
+
+    if (validationError) {
+      return { error: validationError };
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.labels !== undefined ? { labels: payload.labels } : {}),
+      ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    categorisationPromptsById.set(promptId, updated);
+    return { prompt: updated };
+  }
+
+  const existing = await getEntity(TABLES.categorisationPrompts, userId, promptId);
+
+  if (!existing) {
     return { prompt: null };
   }
 
@@ -135,22 +265,46 @@ function updateCategorisationPrompt(userId, promptId, payload) {
     return { error: validationError };
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.labels !== undefined ? { labels: payload.labels } : {}),
-    ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextLabels = payload.labels !== undefined ? payload.labels : existing.labels || [];
+  const nextNodeUsages = Array.isArray(payload.nodeUsages)
+    ? payload.nodeUsages
+    : existing.nodeUsages || [];
 
-  categorisationPromptsById.set(promptId, updated);
+  const updated = await updateEntity(
+    TABLES.categorisationPrompts,
+    userId,
+    promptId,
+    {
+      name: nextName,
+      labels: nextLabels,
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
+
   return { prompt: updated };
 }
 
-function deleteCategorisationPrompt(userId, promptId) {
-  const existing = categorisationPromptsById.get(promptId);
+async function deleteCategorisationPrompt(userId, promptId) {
+  if (useMemoryStore()) {
+    const existing = categorisationPromptsById.get(promptId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (existing.nodeUsages?.length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    categorisationPromptsById.delete(promptId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.categorisationPrompts, userId, promptId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -158,11 +312,11 @@ function deleteCategorisationPrompt(userId, promptId) {
     return { success: false, reason: 'in_use' };
   }
 
-  categorisationPromptsById.delete(promptId);
+  await deleteEntity(TABLES.categorisationPrompts, userId, promptId);
   return { success: true };
 }
 
-function createDocumentFolder(userId, payload) {
+async function createDocumentFolder(userId, payload) {
   const now = new Date().toISOString();
   const folder = {
     id: randomUUID(),
@@ -174,39 +328,97 @@ function createDocumentFolder(userId, payload) {
     updatedAt: now
   };
 
-  documentFoldersById.set(folder.id, folder);
-  return folder;
+  if (useMemoryStore()) {
+    documentFoldersById.set(folder.id, folder);
+    return folder;
+  }
+
+  return insertEntity(TABLES.documentFolders, {
+    id: folder.id,
+    userId,
+    data: {
+      name: folder.name,
+      heldDocuments: folder.heldDocuments,
+      nodeUsages: folder.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function listDocumentFolders(userId) {
-  return listByOwner(documentFoldersById, userId).map((folder) => ({
+async function listDocumentFolders(userId) {
+  const folders = useMemoryStore()
+    ? listByOwner(documentFoldersById, userId)
+    : await listEntities(TABLES.documentFolders, userId);
+
+  return folders.map((folder) => ({
     ...folder,
-    heldDocumentCount: folder.heldDocuments.length
+    heldDocumentCount: (folder.heldDocuments || []).length
   }));
 }
 
-function updateDocumentFolder(userId, folderId, payload) {
-  const existing = documentFoldersById.get(folderId);
+async function updateDocumentFolder(userId, folderId, payload) {
+  if (useMemoryStore()) {
+    const existing = documentFoldersById.get(folderId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    documentFoldersById.set(folderId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.documentFolders, userId, folderId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextNodeUsages = Array.isArray(payload.nodeUsages)
+    ? payload.nodeUsages
+    : existing.nodeUsages || [];
 
-  documentFoldersById.set(folderId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.documentFolders,
+    userId,
+    folderId,
+    {
+      name: nextName,
+      heldDocuments: existing.heldDocuments || [],
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteDocumentFolder(userId, folderId) {
-  const existing = documentFoldersById.get(folderId);
+async function deleteDocumentFolder(userId, folderId) {
+  if (useMemoryStore()) {
+    const existing = documentFoldersById.get(folderId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (existing.nodeUsages?.length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    documentFoldersById.delete(folderId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.documentFolders, userId, folderId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -214,14 +426,41 @@ function deleteDocumentFolder(userId, folderId) {
     return { success: false, reason: 'in_use' };
   }
 
-  documentFoldersById.delete(folderId);
+  await deleteEntity(TABLES.documentFolders, userId, folderId);
   return { success: true };
 }
 
-function holdDocumentInFolder(userId, folderId, payload) {
-  const existing = documentFoldersById.get(folderId);
+async function holdDocumentInFolder(userId, folderId, payload) {
+  if (useMemoryStore()) {
+    const existing = documentFoldersById.get(folderId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const heldRecord = {
+      document: payload.document || null,
+      metadata: payload.metadata || {},
+      workflowId: payload.workflowId || null,
+      workflowName: payload.workflowName || null,
+      nodeId: payload.nodeId || null,
+      nodeName: payload.nodeName || null,
+      arrivedAt: new Date().toISOString()
+    };
+
+    const updated = {
+      ...existing,
+      heldDocuments: [...existing.heldDocuments, heldRecord],
+      updatedAt: new Date().toISOString()
+    };
+
+    documentFoldersById.set(folderId, updated);
+    return heldRecord;
+  }
+
+  const existing = await getEntity(TABLES.documentFolders, userId, folderId);
+
+  if (!existing) {
     return null;
   }
 
@@ -235,20 +474,59 @@ function holdDocumentInFolder(userId, folderId, payload) {
     arrivedAt: new Date().toISOString()
   };
 
-  const updated = {
-    ...existing,
-    heldDocuments: [...existing.heldDocuments, heldRecord],
-    updatedAt: new Date().toISOString()
-  };
+  const nextHeld = [...(existing.heldDocuments || []), heldRecord];
 
-  documentFoldersById.set(folderId, updated);
+  await updateEntity(
+    TABLES.documentFolders,
+    userId,
+    folderId,
+    {
+      name: existing.name,
+      heldDocuments: nextHeld,
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
+
   return heldRecord;
 }
 
-function sendOutFromFolder(userId, folderId, documentIds) {
-  const existing = documentFoldersById.get(folderId);
+async function sendOutFromFolder(userId, folderId, documentIds) {
+  if (useMemoryStore()) {
+    const existing = documentFoldersById.get(folderId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const ids = new Set(documentIds || []);
+    const releasedDocuments = [];
+    const remainingDocuments = [];
+
+    existing.heldDocuments.forEach((heldDocument) => {
+      const heldId = heldDocument.document?.id;
+
+      if (heldId && ids.has(heldId)) {
+        releasedDocuments.push(heldDocument);
+        return;
+      }
+
+      remainingDocuments.push(heldDocument);
+    });
+
+    const updated = {
+      ...existing,
+      heldDocuments: remainingDocuments,
+      updatedAt: new Date().toISOString()
+    };
+
+    documentFoldersById.set(folderId, updated);
+    return releasedDocuments;
+  }
+
+  const existing = await getEntity(TABLES.documentFolders, userId, folderId);
+
+  if (!existing) {
     return null;
   }
 
@@ -256,7 +534,7 @@ function sendOutFromFolder(userId, folderId, documentIds) {
   const releasedDocuments = [];
   const remainingDocuments = [];
 
-  existing.heldDocuments.forEach((heldDocument) => {
+  (existing.heldDocuments || []).forEach((heldDocument) => {
     const heldId = heldDocument.document?.id;
 
     if (heldId && ids.has(heldId)) {
@@ -267,17 +545,22 @@ function sendOutFromFolder(userId, folderId, documentIds) {
     remainingDocuments.push(heldDocument);
   });
 
-  const updated = {
-    ...existing,
-    heldDocuments: remainingDocuments,
-    updatedAt: new Date().toISOString()
-  };
+  await updateEntity(
+    TABLES.documentFolders,
+    userId,
+    folderId,
+    {
+      name: existing.name,
+      heldDocuments: remainingDocuments,
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
 
-  documentFoldersById.set(folderId, updated);
   return releasedDocuments;
 }
 
-function createExtractor(userId, payload) {
+async function createExtractor(userId, payload) {
   const now = new Date().toISOString();
   const extractor = {
     id: randomUUID(),
@@ -292,44 +575,113 @@ function createExtractor(userId, payload) {
     updatedAt: now
   };
 
-  extractorsById.set(extractor.id, extractor);
-  return extractor;
+  if (useMemoryStore()) {
+    extractorsById.set(extractor.id, extractor);
+    return extractor;
+  }
+
+  return insertEntity(TABLES.extractors, {
+    id: extractor.id,
+    userId,
+    data: {
+      name: extractor.name,
+      schema: extractor.schema,
+      holdAllDocuments: extractor.holdAllDocuments,
+      heldDocuments: extractor.heldDocuments,
+      feedbacks: extractor.feedbacks,
+      nodeUsages: extractor.nodeUsages
+    },
+    createdAt: now,
+    updatedAt: now
+  });
 }
 
-function listExtractors(userId) {
-  return listByOwner(extractorsById, userId).map((extractor) => ({
+async function listExtractors(userId) {
+  const extractors = useMemoryStore()
+    ? listByOwner(extractorsById, userId)
+    : await listEntities(TABLES.extractors, userId);
+
+  return extractors.map((extractor) => ({
     ...extractor,
-    heldDocumentCount: extractor.heldDocuments.length,
-    feedbackCount: extractor.feedbacks.length
+    heldDocumentCount: (extractor.heldDocuments || []).length,
+    feedbackCount: (extractor.feedbacks || []).length
   }));
 }
 
-function updateExtractor(userId, extractorId, payload) {
-  const existing = extractorsById.get(extractorId);
+async function updateExtractor(userId, extractorId, payload) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const updated = {
+      ...existing,
+      ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
+      ...(payload.schema !== undefined ? { schema: payload.schema } : {}),
+      ...(payload.holdAllDocuments !== undefined
+        ? { holdAllDocuments: Boolean(payload.holdAllDocuments) }
+        : {}),
+      ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
+      updatedAt: new Date().toISOString()
+    };
+
+    extractorsById.set(extractorId, updated);
+    return updated;
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return null;
   }
 
-  const updated = {
-    ...existing,
-    ...(payload.name !== undefined ? { name: payload.name.trim() || existing.name } : {}),
-    ...(payload.schema !== undefined ? { schema: payload.schema } : {}),
-    ...(payload.holdAllDocuments !== undefined
-      ? { holdAllDocuments: Boolean(payload.holdAllDocuments) }
-      : {}),
-    ...(Array.isArray(payload.nodeUsages) ? { nodeUsages: payload.nodeUsages } : {}),
-    updatedAt: new Date().toISOString()
-  };
+  const nextName = payload.name !== undefined ? payload.name.trim() || existing.name : existing.name;
+  const nextSchema = payload.schema !== undefined ? payload.schema : existing.schema;
+  const nextHold =
+    payload.holdAllDocuments !== undefined
+      ? Boolean(payload.holdAllDocuments)
+      : existing.holdAllDocuments;
+  const nextNodeUsages = Array.isArray(payload.nodeUsages)
+    ? payload.nodeUsages
+    : existing.nodeUsages || [];
 
-  extractorsById.set(extractorId, updated);
-  return updated;
+  return updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: nextName,
+      schema: nextSchema,
+      holdAllDocuments: nextHold,
+      heldDocuments: existing.heldDocuments || [],
+      feedbacks: existing.feedbacks || [],
+      nodeUsages: nextNodeUsages
+    },
+    new Date().toISOString()
+  );
 }
 
-function deleteExtractor(userId, extractorId) {
-  const existing = extractorsById.get(extractorId);
+async function deleteExtractor(userId, extractorId) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    if (existing.nodeUsages?.length) {
+      return { success: false, reason: 'in_use' };
+    }
+
+    extractorsById.delete(extractorId);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return { success: false, reason: 'not_found' };
   }
 
@@ -337,14 +689,40 @@ function deleteExtractor(userId, extractorId) {
     return { success: false, reason: 'in_use' };
   }
 
-  extractorsById.delete(extractorId);
+  await deleteEntity(TABLES.extractors, userId, extractorId);
   return { success: true };
 }
 
-function addExtractorFeedback(userId, extractorId, payload) {
-  const existing = extractorsById.get(extractorId);
+async function addExtractorFeedback(userId, extractorId, payload) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const feedback = {
+      id: randomUUID(),
+      documentId: payload.documentId || null,
+      targetType: payload.targetType || null,
+      targetPath: payload.targetPath || null,
+      feedbackText: payload.feedbackText || '',
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = {
+      ...existing,
+      feedbacks: [...existing.feedbacks, feedback],
+      updatedAt: new Date().toISOString()
+    };
+
+    extractorsById.set(extractorId, updated);
+    return feedback;
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return null;
   }
 
@@ -357,20 +735,52 @@ function addExtractorFeedback(userId, extractorId, payload) {
     createdAt: new Date().toISOString()
   };
 
-  const updated = {
-    ...existing,
-    feedbacks: [...existing.feedbacks, feedback],
-    updatedAt: new Date().toISOString()
-  };
+  await updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: existing.name,
+      schema: existing.schema,
+      holdAllDocuments: existing.holdAllDocuments,
+      heldDocuments: existing.heldDocuments || [],
+      feedbacks: [...(existing.feedbacks || []), feedback],
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
 
-  extractorsById.set(extractorId, updated);
   return feedback;
 }
 
-function deleteExtractorFeedback(userId, extractorId, feedbackId) {
-  const existing = extractorsById.get(extractorId);
+async function deleteExtractorFeedback(userId, extractorId, feedbackId) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const feedbacks = existing.feedbacks || [];
+    const nextFeedbacks = feedbacks.filter((item) => item.id !== feedbackId);
+
+    if (nextFeedbacks.length === feedbacks.length) {
+      return { success: false, reason: 'not_found' };
+    }
+
+    const updated = {
+      ...existing,
+      feedbacks: nextFeedbacks,
+      updatedAt: new Date().toISOString()
+    };
+
+    extractorsById.set(extractorId, updated);
+    return { success: true };
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return null;
   }
 
@@ -381,20 +791,51 @@ function deleteExtractorFeedback(userId, extractorId, feedbackId) {
     return { success: false, reason: 'not_found' };
   }
 
-  const updated = {
-    ...existing,
-    feedbacks: nextFeedbacks,
-    updatedAt: new Date().toISOString()
-  };
+  await updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: existing.name,
+      schema: existing.schema,
+      holdAllDocuments: existing.holdAllDocuments,
+      heldDocuments: existing.heldDocuments || [],
+      feedbacks: nextFeedbacks,
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
 
-  extractorsById.set(extractorId, updated);
   return { success: true };
 }
 
-function holdDocumentInExtractor(userId, extractorId, payload) {
-  const existing = extractorsById.get(extractorId);
+async function holdDocumentInExtractor(userId, extractorId, payload) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const heldDocument = {
+      document: payload.document || null,
+      metadata: payload.metadata || {},
+      heldAt: new Date().toISOString()
+    };
+
+    const updated = {
+      ...existing,
+      heldDocuments: [...existing.heldDocuments, heldDocument],
+      updatedAt: new Date().toISOString()
+    };
+
+    extractorsById.set(extractorId, updated);
+    return heldDocument;
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return null;
   }
 
@@ -404,20 +845,60 @@ function holdDocumentInExtractor(userId, extractorId, payload) {
     heldAt: new Date().toISOString()
   };
 
-  const updated = {
-    ...existing,
-    heldDocuments: [...existing.heldDocuments, heldDocument],
-    updatedAt: new Date().toISOString()
-  };
+  await updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: existing.name,
+      schema: existing.schema,
+      holdAllDocuments: existing.holdAllDocuments,
+      heldDocuments: [...(existing.heldDocuments || []), heldDocument],
+      feedbacks: existing.feedbacks || [],
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
 
-  extractorsById.set(extractorId, updated);
   return heldDocument;
 }
 
-function sendOutFromExtractor(userId, extractorId, documentIds) {
-  const existing = extractorsById.get(extractorId);
+async function sendOutFromExtractor(userId, extractorId, documentIds) {
+  if (useMemoryStore()) {
+    const existing = extractorsById.get(extractorId);
 
-  if (!isOwnedByUser(existing, userId)) {
+    if (!isOwnedByUser(existing, userId)) {
+      return null;
+    }
+
+    const ids = new Set(documentIds || []);
+    const releasedDocuments = [];
+    const remainingDocuments = [];
+
+    existing.heldDocuments.forEach((heldDocument) => {
+      const heldId = heldDocument.document?.id;
+
+      if (heldId && ids.has(heldId)) {
+        releasedDocuments.push(heldDocument);
+        return;
+      }
+
+      remainingDocuments.push(heldDocument);
+    });
+
+    const updated = {
+      ...existing,
+      heldDocuments: remainingDocuments,
+      updatedAt: new Date().toISOString()
+    };
+
+    extractorsById.set(extractorId, updated);
+    return releasedDocuments;
+  }
+
+  const existing = await getEntity(TABLES.extractors, userId, extractorId);
+
+  if (!existing) {
     return null;
   }
 
@@ -425,7 +906,7 @@ function sendOutFromExtractor(userId, extractorId, documentIds) {
   const releasedDocuments = [];
   const remainingDocuments = [];
 
-  existing.heldDocuments.forEach((heldDocument) => {
+  (existing.heldDocuments || []).forEach((heldDocument) => {
     const heldId = heldDocument.document?.id;
 
     if (heldId && ids.has(heldId)) {
@@ -436,13 +917,21 @@ function sendOutFromExtractor(userId, extractorId, documentIds) {
     remainingDocuments.push(heldDocument);
   });
 
-  const updated = {
-    ...existing,
-    heldDocuments: remainingDocuments,
-    updatedAt: new Date().toISOString()
-  };
+  await updateEntity(
+    TABLES.extractors,
+    userId,
+    extractorId,
+    {
+      name: existing.name,
+      schema: existing.schema,
+      holdAllDocuments: existing.holdAllDocuments,
+      heldDocuments: remainingDocuments,
+      feedbacks: existing.feedbacks || [],
+      nodeUsages: existing.nodeUsages || []
+    },
+    new Date().toISOString()
+  );
 
-  extractorsById.set(extractorId, updated);
   return releasedDocuments;
 }
 
