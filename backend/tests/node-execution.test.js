@@ -1,8 +1,10 @@
 const {
+  executeHttpNode,
   executeIfNode,
   executeManualUploadNode,
   executeSetValueNode,
-  executeSwitchNode
+  executeSwitchNode,
+  executeWebhookNode
 } = require('../src/services/node-execution.service');
 
 describe('node execution service', () => {
@@ -134,5 +136,114 @@ describe('node execution service', () => {
     expect(result.metadata.approval.status).toBe('approved');
     expect(result.metadata.approved).toBe(true);
     expect(result.document).toEqual(basePayload.document);
+  });
+
+  it('webhook node uses inbound JSON payload as metadata without document', () => {
+    const result = executeWebhookNode({
+      webhookPayload: {
+        body: {
+          invoiceNumber: 'INV-100',
+          totalAmount: 120.5
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      document: null,
+      metadata: {
+        invoiceNumber: 'INV-100',
+        totalAmount: 120.5
+      }
+    });
+  });
+
+  it('webhook node treats inbound file as document and excludes it from metadata', () => {
+    const result = executeWebhookNode({
+      webhookPayload: {
+        body: {
+          vendorName: 'Acme',
+          file: {
+            fileName: 'invoice.pdf',
+            mimeType: 'application/pdf'
+          }
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      document: {
+        fileName: 'invoice.pdf',
+        mimeType: 'application/pdf'
+      },
+      metadata: {
+        vendorName: 'Acme'
+      }
+    });
+  });
+
+  it('http node resolves template expressions and appends response metadata', async () => {
+    const requestFn = jest.fn().mockResolvedValue({
+      status: 201,
+      body: { exportId: 'exp_1' }
+    });
+
+    const result = await executeHttpNode(
+      {
+        ...basePayload,
+        config: {
+          url: 'https://example.test/export/{{ $metadata.vendor.name }}',
+          method: 'POST',
+          headers: {
+            Authorization: 'Bearer token',
+            'X-Doc-Id': '{{ $document.id }}'
+          },
+          body: {
+            invoiceFile: '{{ $document.fileName }}',
+            totalAmount: '{{ $metadata.totalAmount }}'
+          }
+        }
+      },
+      { requestFn }
+    );
+
+    expect(requestFn).toHaveBeenCalledWith({
+      url: 'https://example.test/export/Acme Corporation',
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer token',
+        'X-Doc-Id': 'doc_1'
+      },
+      body: {
+        invoiceFile: 'invoice.pdf',
+        totalAmount: 95
+      }
+    });
+    expect(result.document).toEqual(basePayload.document);
+    expect(result.metadata.httpResponse).toEqual({
+      statusCode: 201,
+      body: { exportId: 'exp_1' }
+    });
+  });
+
+  it('http node throws when outbound request returns non-2xx', async () => {
+    const requestFn = jest.fn().mockResolvedValue({
+      status: 500,
+      body: { error: 'downstream failed' }
+    });
+
+    await expect(
+      executeHttpNode(
+        {
+          ...basePayload,
+          config: {
+            url: 'https://example.test/export',
+            method: 'POST',
+            headers: {},
+            body: {}
+          }
+        },
+        { requestFn }
+      )
+    ).rejects.toThrow('HTTP request failed with status 500');
   });
 });

@@ -30,6 +30,16 @@ describe('coreNodeUtils', () => {
     ]);
   });
 
+  it('returns webhook as trigger output-only node', () => {
+    const ports = getNodePorts({
+      nodeTypeKey: 'webhook',
+      config: {}
+    });
+
+    expect(ports.inputs).toEqual([]);
+    expect(ports.outputs).toEqual([{ id: 'out-primary', label: 'Out' }]);
+  });
+
   it('evaluates IF preview with AND/OR logic', () => {
     const metadata = { totalAmount: 60, approved: false };
     const config = {
@@ -80,5 +90,15 @@ describe('coreNodeUtils', () => {
     const result = applySetValuePreview(metadata, config);
 
     expect(result.approval.status).toBe('approved');
+  });
+
+  it('provides webhook and HTTP default configs', () => {
+    const webhookConfig = getDefaultNodeConfig('webhook');
+    const httpConfig = getDefaultNodeConfig('http');
+
+    expect(webhookConfig.expectedMethod).toBe('POST');
+    expect(webhookConfig.description).toBe('');
+    expect(httpConfig.method).toBe('POST');
+    expect(httpConfig.url).toBe('');
   });
 });

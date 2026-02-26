@@ -4,6 +4,7 @@ const healthRouter = require('./routes/health.routes');
 const authRouter = require('./routes/auth.routes');
 const usersRouter = require('./routes/users.routes');
 const workflowsRouter = require('./routes/workflows.routes');
+const webhooksRouter = require('./routes/webhooks.routes');
 const configServiceNodesRouter = require('./routes/config-service-nodes.routes');
 const dataMapperReconciliationRouter = require('./routes/data-mapper-reconciliation.routes');
 
@@ -16,6 +17,7 @@ app.use('/api/health', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/workflows', workflowsRouter);
+app.use('/api/webhooks', webhooksRouter);
 app.use('/api', configServiceNodesRouter);
 app.use('/api', dataMapperReconciliationRouter);
 
