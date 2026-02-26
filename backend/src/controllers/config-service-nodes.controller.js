@@ -1,5 +1,5 @@
 const {
-  addExtractorFeedback,
+  appendExtractorFeedbackItem,
   deleteExtractorFeedback,
   createCategorisationPrompt,
   createDocumentFolder,
@@ -271,10 +271,10 @@ async function deleteExtractorController(req, res, next) {
 
 async function addExtractorFeedbackController(req, res, next) {
   try {
-    let feedback = null;
+    let feedbackGroup = null;
 
     if (req.file) {
-      feedback = await addTrainingFeedbackWithDocument({
+      feedbackGroup = await addTrainingFeedbackWithDocument({
         userId: req.user.id,
         extractorId: req.params.extractorId,
         file: req.file,
@@ -284,14 +284,33 @@ async function addExtractorFeedbackController(req, res, next) {
         documentId: req.body?.documentId || null
       });
     } else {
-      feedback = await addExtractorFeedback(req.user.id, req.params.extractorId, req.body || {});
+      const result = await appendExtractorFeedbackItem(
+        req.user.id,
+        req.params.extractorId,
+        req.body?.feedbackGroupId || null,
+        req.body || {}
+      );
+
+      if (!result) {
+        return res.status(404).json({ error: 'Extractor not found' });
+      }
+
+      if (!result.success && result.reason === 'group_required') {
+        return res.status(400).json({ error: 'Feedback group is required' });
+      }
+
+      if (!result.success) {
+        return res.status(404).json({ error: 'Feedback group not found' });
+      }
+
+      feedbackGroup = result.feedbackGroup;
     }
 
-    if (!feedback) {
+    if (!feedbackGroup) {
       return res.status(404).json({ error: 'Extractor not found' });
     }
 
-    return res.status(201).json({ feedback });
+    return res.status(201).json({ feedback: feedbackGroup });
   } catch (error) {
     return next(error);
   }
