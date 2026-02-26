@@ -492,7 +492,7 @@ export function ExtractorDetailPage() {
                       </button>
                     </div>
 
-                    <div className="panel-actions">
+                    <div className="panel-actions align-right">
                       <button type="button" className="btn btn-outline" onClick={() => addColumn(index)}>
                         Add Column
                       </button>
