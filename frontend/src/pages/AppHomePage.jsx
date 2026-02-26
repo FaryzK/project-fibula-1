@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useWorkflowStore } from '../stores/workflowStore';
 import { CategorisationPromptsTab } from './tabs/CategorisationPromptsTab';
+import { DataMapperTab } from './tabs/DataMapperTab';
 import { DocumentFoldersTab } from './tabs/DocumentFoldersTab';
 import { ExtractorsTab } from './tabs/ExtractorsTab';
+import { ReconciliationTab } from './tabs/ReconciliationTab';
 import { SplittingPromptsTab } from './tabs/SplittingPromptsTab';
 
 const TABS = [
@@ -16,10 +18,6 @@ const TABS = [
   { key: 'extractors', label: 'Extractors' },
   { key: 'data-mapper', label: 'Data Mapper' }
 ];
-
-function EmptyTabMessage({ text }) {
-  return <p>{text}</p>;
-}
 
 function WorkflowList() {
   const navigate = useNavigate();
@@ -167,7 +165,7 @@ export function AppHomePage() {
     }
 
     if (activeTab === 'reconciliation') {
-      return <EmptyTabMessage text="Reconciliation content coming in Phase 6." />;
+      return <ReconciliationTab />;
     }
 
     if (activeTab === 'document-splitting') {
@@ -182,7 +180,7 @@ export function AppHomePage() {
       return <ExtractorsTab />;
     }
 
-    return <EmptyTabMessage text="Data mapper content coming in Phase 6." />;
+    return <DataMapperTab />;
   }, [activeTab]);
 
   return (

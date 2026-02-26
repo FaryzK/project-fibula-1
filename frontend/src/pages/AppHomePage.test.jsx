@@ -17,6 +17,12 @@ import {
   listExtractors,
   listSplittingPrompts
 } from '../services/configServiceNodesApi';
+import {
+  listDataMapRules,
+  listDataMapSets,
+  listMatchingSets,
+  listReconciliationRules
+} from '../services/dataMapperReconciliationApi';
 
 vi.mock('../services/workflowApi', () => ({
   listWorkflows: vi.fn(),
@@ -45,6 +51,25 @@ vi.mock('../services/configServiceNodesApi', () => ({
   deleteExtractor: vi.fn()
 }));
 
+vi.mock('../services/dataMapperReconciliationApi', () => ({
+  listDataMapSets: vi.fn(),
+  createDataMapSet: vi.fn(),
+  updateDataMapSet: vi.fn(),
+  deleteDataMapSet: vi.fn(),
+  listDataMapRules: vi.fn(),
+  createDataMapRule: vi.fn(),
+  updateDataMapRule: vi.fn(),
+  deleteDataMapRule: vi.fn(),
+  listReconciliationRules: vi.fn(),
+  createReconciliationRule: vi.fn(),
+  updateReconciliationRule: vi.fn(),
+  deleteReconciliationRule: vi.fn(),
+  listMatchingSets: vi.fn(),
+  createMatchingSet: vi.fn(),
+  forceReconcileMatchingSet: vi.fn(),
+  rejectMatchingSet: vi.fn()
+}));
+
 describe('AppHomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -52,6 +77,10 @@ describe('AppHomePage', () => {
     listCategorisationPrompts.mockResolvedValue([]);
     listDocumentFolders.mockResolvedValue([]);
     listExtractors.mockResolvedValue([]);
+    listDataMapSets.mockResolvedValue([]);
+    listDataMapRules.mockResolvedValue([]);
+    listReconciliationRules.mockResolvedValue([]);
+    listMatchingSets.mockResolvedValue([]);
 
     useAuthStore.setState({
       user: { id: 'user_1', email: 'user@example.com' },
@@ -100,6 +129,36 @@ describe('AppHomePage', () => {
     fireEvent.click(docFolderTab);
 
     expect(await screen.findByRole('heading', { name: /document folders/i })).toBeTruthy();
+  });
+
+  it('switches to reconciliation tab', async () => {
+    listWorkflows.mockResolvedValueOnce([]);
+
+    render(
+      <MemoryRouter>
+        <AppHomePage />
+      </MemoryRouter>
+    );
+
+    const reconciliationTab = await screen.findByRole('button', { name: /reconciliation/i });
+    fireEvent.click(reconciliationTab);
+
+    expect(await screen.findByRole('heading', { name: /reconciliation rules/i })).toBeTruthy();
+  });
+
+  it('switches to data mapper tab', async () => {
+    listWorkflows.mockResolvedValueOnce([]);
+
+    render(
+      <MemoryRouter>
+        <AppHomePage />
+      </MemoryRouter>
+    );
+
+    const dataMapperTab = await screen.findByRole('button', { name: /data mapper/i });
+    fireEvent.click(dataMapperTab);
+
+    expect(await screen.findByRole('heading', { name: /data mapper/i })).toBeTruthy();
   });
 
   it('supports create, publish and delete actions', async () => {
