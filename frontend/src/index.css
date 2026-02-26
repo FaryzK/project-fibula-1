@@ -585,6 +585,16 @@ hr {
   color: var(--ink);
 }
 
+.icon-btn-lg {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+}
+
+.row-active {
+  background: rgba(30, 122, 99, 0.08);
+}
+
 .toggle {
   display: inline-flex;
   align-items: center;

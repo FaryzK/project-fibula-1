@@ -40,7 +40,7 @@ export function ExtractorDetailPage() {
   const [statusText, setStatusText] = useState('');
   const [activeTab, setActiveTab] = useState('schema');
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isEditing, setIsEditing] = useState(isNew);
+  const [isEditingSchema, setIsEditingSchema] = useState(isNew);
   const [feedbacks, setFeedbacks] = useState([]);
   const [feedbackDocumentId, setFeedbackDocumentId] = useState('');
   const [feedbackTargetType, setFeedbackTargetType] = useState('header');
@@ -49,6 +49,10 @@ export function ExtractorDetailPage() {
   const [feedbackStatus, setFeedbackStatus] = useState('');
   const [feedbackError, setFeedbackError] = useState('');
   const [selectedHeldDocs, setSelectedHeldDocs] = useState([]);
+  const [uploadedDocument, setUploadedDocument] = useState(null);
+  const [extractionPreview, setExtractionPreview] = useState(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
 
   useEffect(() => {
     if (isNew) {
@@ -73,7 +77,7 @@ export function ExtractorDetailPage() {
         setSchema(found.schema || DEFAULT_SCHEMA);
         setHoldAllDocuments(Boolean(found.holdAllDocuments));
         setFeedbacks(found.feedbacks || []);
-        setIsEditing(false);
+        setIsEditingSchema(false);
       } catch (error) {
         setErrorText(error?.response?.data?.error || 'Failed to load extractor');
       } finally {
@@ -212,6 +216,58 @@ export function ExtractorDetailPage() {
     });
   }
 
+  function buildPreviewFromSchema(schemaSnapshot) {
+    const headerPreview = (schemaSnapshot.headerFields || []).map((field) => ({
+      fieldName: field.fieldName || 'Field',
+      value: '—'
+    }));
+    const tablePreview = (schemaSnapshot.tableTypes || []).map((table) => ({
+      tableName: table.tableName || 'Table',
+      columns: (table.columns || []).map((column) => ({
+        columnName: column.columnName || 'Column',
+        value: '—'
+      }))
+    }));
+
+    return {
+      headerFields: headerPreview,
+      tableTypes: tablePreview
+    };
+  }
+
+  async function handleRunExtraction() {
+    if (!uploadedDocument) {
+      setFeedbackError('Upload a document before running extraction');
+      return;
+    }
+
+    setFeedbackError('');
+    setFeedbackStatus('');
+    setIsExtracting(true);
+    setSelectedPreviewTarget(null);
+
+    try {
+      const preview = buildPreviewFromSchema(schema);
+      setExtractionPreview(preview);
+      setFeedbackDocumentId(uploadedDocument.name || 'uploaded-document');
+    } finally {
+      setIsExtracting(false);
+    }
+  }
+
+  function handleSelectHeaderTarget(fieldName) {
+    setSelectedPreviewTarget({ type: 'header', path: fieldName });
+    setFeedbackTargetType('header');
+    setFeedbackTargetPath(fieldName);
+  }
+
+  function handleSelectTableTarget(tableName, columnName) {
+    const path = `${tableName}.${columnName}`;
+    setSelectedPreviewTarget({ type: 'table', path });
+    setFeedbackTargetType('table');
+    setFeedbackTargetPath(path);
+  }
+
   function addColumn(tableIndex) {
     setSchema((previous) => {
       const tableTypes = [...(previous.tableTypes || [])];
@@ -238,6 +294,11 @@ export function ExtractorDetailPage() {
       return;
     }
 
+    if (!feedbackTargetPath) {
+      setFeedbackError('Select a field or table cell to leave feedback');
+      return;
+    }
+
     setFeedbackError('');
     setFeedbackStatus('');
 
@@ -250,9 +311,9 @@ export function ExtractorDetailPage() {
       });
       setFeedbacks((current) => [feedback, ...current]);
       setFeedbackStatus('Feedback recorded');
-      setFeedbackDocumentId('');
       setFeedbackTargetPath('');
       setFeedbackText('');
+      setSelectedPreviewTarget(null);
     } catch (error) {
       setFeedbackError(error?.response?.data?.error || 'Failed to add feedback');
     }
@@ -320,18 +381,17 @@ export function ExtractorDetailPage() {
     });
   }
 
-  async function handleSave() {
+  async function handleSaveExtractor() {
     if (!name.trim()) {
       setErrorText('Extractor name is required');
       return;
     }
 
-    setIsSaving(true);
-    setErrorText('');
-    setStatusText('');
-
     try {
       if (isNew) {
+        setIsSaving(true);
+        setErrorText('');
+        setStatusText('');
         const extractor = await createExtractor({
           name,
           schema,
@@ -350,6 +410,27 @@ export function ExtractorDetailPage() {
         return;
       }
 
+      await handleSaveSchema();
+    } catch (error) {
+      setErrorText(error?.response?.data?.error || 'Failed to save extractor');
+    }
+  }
+
+  async function handleSaveSchema() {
+    if (!extractorId) {
+      return;
+    }
+
+    if (!name.trim()) {
+      setErrorText('Extractor name is required');
+      return;
+    }
+
+    setIsSaving(true);
+    setErrorText('');
+    setStatusText('');
+
+    try {
       const extractor = await updateExtractor(extractorId, {
         name,
         schema,
@@ -357,10 +438,10 @@ export function ExtractorDetailPage() {
       });
       setExtractorMeta(extractor);
       setFeedbacks(extractor.feedbacks || []);
-      setStatusText('Extractor updated');
-      setIsEditing(false);
+      setStatusText('Schema updated');
+      setIsEditingSchema(false);
     } catch (error) {
-      setErrorText(error?.response?.data?.error || 'Failed to save extractor');
+      setErrorText(error?.response?.data?.error || 'Failed to save schema');
     } finally {
       setIsSaving(false);
     }
@@ -375,7 +456,7 @@ export function ExtractorDetailPage() {
     }
     setErrorText('');
     setStatusText('');
-    setIsEditing(false);
+    setIsEditingSchema(false);
   }
 
   async function handleDeleteExtractor() {
@@ -408,7 +489,7 @@ export function ExtractorDetailPage() {
     }
 
     if (activeIndex >= createSteps.length - 1) {
-      handleSave();
+      handleSaveExtractor();
       return;
     }
 
@@ -428,7 +509,7 @@ export function ExtractorDetailPage() {
   const requiredHeaderCount = (schema.headerFields || []).filter((item) => item.required).length;
   const requiredTableCount = (schema.tableTypes || []).filter((item) => item.required).length;
   const heldDocuments = extractorMeta?.heldDocuments || emptyArray;
-  const canEditSchema = isNew || isEditing;
+  const canEditSchema = isNew || isEditingSchema;
   const titleText = name.trim() || (isNew ? 'New Extractor' : 'Untitled Extractor');
   const formatTimestamp = (value) => {
     if (!value) {
@@ -470,47 +551,39 @@ export function ExtractorDetailPage() {
     });
   }, [heldDocuments]);
 
+  useEffect(() => {
+    setExtractionPreview(null);
+    setSelectedPreviewTarget(null);
+    setFeedbackTargetPath('');
+    setFeedbackText('');
+    setFeedbackStatus('');
+    setFeedbackError('');
+    setFeedbackDocumentId(uploadedDocument?.name || '');
+  }, [uploadedDocument]);
+
   return (
     <div className="panel-stack">
       <header className="section-header">
         <div className="section-title-row">
-          <Link className="icon-btn-neutral" to="/app/services/extractors" aria-label="Back to extractors">
+          <Link className="icon-btn-neutral icon-btn-lg" to="/app/services/extractors" aria-label="Back to extractors">
             ←
           </Link>
           <div>
-            {isNew ? <h1>{titleText}</h1> : null}
-            {!isNew && !isEditing ? <h1>{titleText}</h1> : null}
-            {!isNew && isEditing ? (
-              <input
-                className="title-input"
-                type="text"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="Extractor name"
-              />
-            ) : null}
+            <h1>{titleText}</h1>
           </div>
-          {!isNew && !isEditing ? (
+        </div>
+        {isNew ? (
+          <div className="section-actions">
             <button
               type="button"
-              className="icon-btn-neutral"
-              onClick={() => setIsEditing(true)}
-              aria-label="Edit schema"
+              className="btn-primary"
+              onClick={handleSaveExtractor}
+              disabled={isSaving}
             >
-              ✎
+              {isSaving ? 'Saving...' : 'Create Extractor'}
             </button>
-          ) : null}
-        </div>
-        <div className="section-actions">
-          {!isNew && isEditing ? (
-            <button type="button" className="btn btn-ghost" onClick={handleCancelEdit}>
-              Cancel
-            </button>
-          ) : null}
-          <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving...' : isNew ? 'Create Extractor' : 'Save Extractor'}
-          </button>
-        </div>
+          </div>
+        ) : null}
       </header>
 
       {errorText ? <p className="status-error">{errorText}</p> : null}
@@ -582,6 +655,61 @@ export function ExtractorDetailPage() {
 
           {(isNew ? activeStep === 'schema' : activeTab === 'schema') ? (
             <div className="panel-stack">
+              {!isNew ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Schema</h2>
+                      <p>Define the extractor name and document schema fields.</p>
+                    </div>
+                    {!isEditingSchema ? (
+                      <button
+                        type="button"
+                        className="icon-btn-neutral icon-btn-lg"
+                        onClick={() => setIsEditingSchema(true)}
+                        aria-label="Edit schema"
+                      >
+                        ✎
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {!isEditingSchema ? (
+                    <div className="form-grid">
+                      <label htmlFor="extractor-name-readonly">Extractor name</label>
+                      <input id="extractor-name-readonly" type="text" value={titleText} disabled />
+                    </div>
+                  ) : (
+                    <div className="form-grid">
+                      <label htmlFor="extractor-name-edit">Extractor name</label>
+                      <input
+                        id="extractor-name-edit"
+                        type="text"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                        placeholder="Extractor name"
+                      />
+                    </div>
+                  )}
+
+                  {isEditingSchema ? (
+                    <div className="panel-actions">
+                      <button type="button" className="btn btn-ghost" onClick={handleCancelEdit}>
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={handleSaveSchema}
+                        disabled={isSaving}
+                      >
+                        {isSaving ? 'Saving...' : 'Save Schema'}
+                      </button>
+                    </div>
+                  ) : null}
+                </section>
+              ) : null}
+
               <section className="panel">
                 <div className="panel-header">
                   <div>
@@ -811,45 +939,15 @@ export function ExtractorDetailPage() {
                 <div className="panel-header">
                   <div>
                     <h2>Capture Training Feedback</h2>
-                    <p>Log corrections after testing documents so similar ones improve over time.</p>
+                    <p>Upload a document, run extraction, and annotate incorrect fields.</p>
                   </div>
                 </div>
                 <div className="form-grid">
-                  <label htmlFor="feedback-document-id">Document ID</label>
+                  <label htmlFor="feedback-upload">Upload document</label>
                   <input
-                    id="feedback-document-id"
-                    type="text"
-                    value={feedbackDocumentId}
-                    onChange={(event) => setFeedbackDocumentId(event.target.value)}
-                    placeholder="doc_123"
-                  />
-
-                  <label htmlFor="feedback-target-type">Target type</label>
-                  <select
-                    id="feedback-target-type"
-                    value={feedbackTargetType}
-                    onChange={(event) => setFeedbackTargetType(event.target.value)}
-                  >
-                    <option value="header">Header field</option>
-                    <option value="table">Table column</option>
-                  </select>
-
-                  <label htmlFor="feedback-target-path">Target path</label>
-                  <input
-                    id="feedback-target-path"
-                    type="text"
-                    value={feedbackTargetPath}
-                    onChange={(event) => setFeedbackTargetPath(event.target.value)}
-                    placeholder="InvoiceNumber or LineItems[].Price"
-                  />
-
-                  <label htmlFor="feedback-text">Feedback</label>
-                  <textarea
-                    id="feedback-text"
-                    rows={4}
-                    value={feedbackText}
-                    onChange={(event) => setFeedbackText(event.target.value)}
-                    placeholder="Describe the correction that should be applied."
+                    id="feedback-upload"
+                    type="file"
+                    onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
                   />
                 </div>
 
@@ -857,11 +955,136 @@ export function ExtractorDetailPage() {
                 {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
 
                 <div className="panel-actions">
-                  <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
-                    Add Feedback
+                  <button type="button" className="btn btn-outline" onClick={handleRunExtraction} disabled={isExtracting}>
+                    {isExtracting ? 'Extracting...' : extractionPreview ? 'Re-extract' : 'Run Extraction'}
                   </button>
                 </div>
               </section>
+
+              {extractionPreview ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Extraction Preview</h2>
+                      <p>Select a field or column to leave feedback.</p>
+                    </div>
+                  </div>
+                  <div className="panel-stack">
+                    <div>
+                      <h3>Header Fields</h3>
+                      {(extractionPreview.headerFields || []).length === 0 ? (
+                        <p className="muted-text">No header fields defined.</p>
+                      ) : (
+                        <div className="data-table">
+                          <div className="data-header">
+                            <span>Field</span>
+                            <span>Extracted value</span>
+                            <span></span>
+                          </div>
+                          {extractionPreview.headerFields.map((field) => (
+                            <div
+                              className={`data-row ${selectedPreviewTarget?.path === field.fieldName ? 'row-active' : ''}`}
+                              key={field.fieldName}
+                              onClick={() => handleSelectHeaderTarget(field.fieldName)}
+                            >
+                              <div className="data-cell">
+                                <span className="card-title">{field.fieldName}</span>
+                              </div>
+                              <div className="data-cell">
+                                <span className="data-meta">{field.value}</span>
+                              </div>
+                              <div className="data-cell">
+                                <span className="tag">Select</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h3>Table Types</h3>
+                      {(extractionPreview.tableTypes || []).length === 0 ? (
+                        <p className="muted-text">No table types defined.</p>
+                      ) : (
+                        extractionPreview.tableTypes.map((table) => (
+                          <div key={table.tableName} className="panel">
+                            <div className="panel-header">
+                              <div>
+                                <h3>{table.tableName}</h3>
+                                <p className="muted-text">Select a column to leave feedback.</p>
+                              </div>
+                            </div>
+                            <div className="data-table">
+                              <div className="data-header">
+                                <span>Column</span>
+                                <span>Extracted value</span>
+                                <span></span>
+                              </div>
+                              {table.columns.map((column) => (
+                                <div
+                                  className={`data-row ${selectedPreviewTarget?.path === `${table.tableName}.${column.columnName}` ? 'row-active' : ''}`}
+                                  key={`${table.tableName}-${column.columnName}`}
+                                  onClick={() => handleSelectTableTarget(table.tableName, column.columnName)}
+                                >
+                                  <div className="data-cell">
+                                    <span className="card-title">{column.columnName}</span>
+                                  </div>
+                                  <div className="data-cell">
+                                    <span className="data-meta">{column.value}</span>
+                                  </div>
+                                  <div className="data-cell">
+                                    <span className="tag">Select</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              {extractionPreview ? (
+                <section className="panel">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Feedback</h2>
+                      <p>Describe how the extraction should be corrected.</p>
+                    </div>
+                  </div>
+                  <div className="form-grid">
+                    <label htmlFor="feedback-target">Selected target</label>
+                    <input
+                      id="feedback-target"
+                      type="text"
+                      value={selectedPreviewTarget?.path || ''}
+                      placeholder="Select a field or column"
+                      disabled
+                    />
+
+                    <label htmlFor="feedback-text">Feedback</label>
+                    <textarea
+                      id="feedback-text"
+                      rows={4}
+                      value={feedbackText}
+                      onChange={(event) => setFeedbackText(event.target.value)}
+                      placeholder="Describe the correction that should be applied."
+                    />
+                  </div>
+
+                  {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
+                  {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
+
+                  <div className="panel-actions">
+                    <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
+                      Save Feedback
+                    </button>
+                  </div>
+                </section>
+              ) : null}
 
               <section className="panel">
                 <div className="panel-header">
