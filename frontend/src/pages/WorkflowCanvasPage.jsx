@@ -171,12 +171,15 @@ function WorkflowCanvasContent({ workflowId }) {
       return;
     }
 
+    let targetPosition = null;
+
     setNodes((currentNodes) =>
       currentNodes.map((node) => {
         if (node.id !== nodeId) {
           return node;
         }
 
+        targetPosition = node.position;
         const nextConfig = { ...(node.data.config || {}) };
 
         if (assignExtractorId) {
@@ -206,6 +209,11 @@ function WorkflowCanvasContent({ workflowId }) {
         };
       })
     );
+
+    if (targetPosition) {
+      setSelectedNodeId(nodeId);
+      reactFlow.setCenter(targetPosition.x + 100, targetPosition.y + 40, { zoom: 1 });
+    }
 
     navigate(location.pathname, { replace: true });
   }, [
