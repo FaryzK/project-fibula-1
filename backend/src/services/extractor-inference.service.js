@@ -3,7 +3,8 @@ const { addExtractorFeedback, getExtractorById } = require('./config-service-nod
 const {
   generateDocumentSummary,
   generateTextEmbedding,
-  runExtraction
+  runExtraction,
+  uploadPdfForInference
 } = require('./openai-extractor.service');
 const { uploadFeedbackDocument } = require('./storage.service');
 
@@ -72,10 +73,16 @@ async function runExtractorInference({ userId, extractorId, file }) {
     return null;
   }
 
+  const fileId =
+    file.mimetype === 'application/pdf'
+      ? await uploadPdfForInference({ buffer: file.buffer, filename: file.originalname })
+      : null;
+
   const summary = await generateDocumentSummary({
     buffer: file.buffer,
     mimeType: file.mimetype,
-    filename: file.originalname
+    filename: file.originalname,
+    fileId
   });
   const embedding = await generateTextEmbedding(summary);
 
@@ -86,6 +93,7 @@ async function runExtractorInference({ userId, extractorId, file }) {
     buffer: file.buffer,
     mimeType: file.mimetype,
     filename: file.originalname,
+    fileId,
     schema: extractor.schema || { headerFields: [], tableTypes: [] },
     feedbacks: relevantFeedbacks
   });
@@ -112,10 +120,15 @@ async function addTrainingFeedbackWithDocument({
   }
 
   const feedbackId = randomUUID();
+  const fileId =
+    file.mimetype === 'application/pdf'
+      ? await uploadPdfForInference({ buffer: file.buffer, filename: file.originalname })
+      : null;
   const summary = await generateDocumentSummary({
     buffer: file.buffer,
     mimeType: file.mimetype,
-    filename: file.originalname
+    filename: file.originalname,
+    fileId
   });
   const embedding = await generateTextEmbedding(summary);
 

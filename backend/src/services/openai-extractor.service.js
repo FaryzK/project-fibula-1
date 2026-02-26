@@ -1,4 +1,7 @@
 const OpenAI = require('openai');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 let openaiClient = null;
 
@@ -16,8 +19,15 @@ function toDataUrl(buffer, mimeType) {
   return `data:${safeType};base64,${base64}`;
 }
 
-function buildInputPart({ buffer, mimeType, filename }) {
+function buildInputPart({ buffer, mimeType, filename, fileId }) {
   if (mimeType === 'application/pdf') {
+    if (fileId) {
+      return {
+        type: 'input_file',
+        file_id: fileId
+      };
+    }
+
     return {
       type: 'input_file',
       filename: filename || 'document.pdf',
@@ -35,7 +45,26 @@ function buildInputPart({ buffer, mimeType, filename }) {
   throw new Error('Unsupported document type. Please upload an image or PDF.');
 }
 
-async function generateDocumentSummary({ buffer, mimeType, filename }) {
+async function uploadPdfForInference({ buffer, filename }) {
+  const openai = getOpenAIClient();
+  const safeName = filename || 'document.pdf';
+  const tmpPath = path.join(os.tmpdir(), `fibula-${Date.now()}-${safeName}`);
+
+  await fs.promises.writeFile(tmpPath, buffer);
+
+  try {
+    const file = await openai.files.create({
+      file: fs.createReadStream(tmpPath),
+      purpose: process.env.OPENAI_FILE_PURPOSE || 'user_data'
+    });
+
+    return file.id;
+  } finally {
+    await fs.promises.unlink(tmpPath).catch(() => {});
+  }
+}
+
+async function generateDocumentSummary({ buffer, mimeType, filename, fileId }) {
   const openai = getOpenAIClient();
   const response = await openai.responses.create({
     model:
@@ -51,7 +80,7 @@ async function generateDocumentSummary({ buffer, mimeType, filename }) {
             text:
               'Summarize this document in 2-3 sentences. Focus on key fields and tables that appear.'
           },
-          buildInputPart({ buffer, mimeType, filename })
+          buildInputPart({ buffer, mimeType, filename, fileId })
         ]
       }
     ]
@@ -102,7 +131,7 @@ function formatFeedbackContext(feedbacks) {
     .join('\n');
 }
 
-async function runExtraction({ buffer, mimeType, filename, schema, feedbacks }) {
+async function runExtraction({ buffer, mimeType, filename, fileId, schema, feedbacks }) {
   const openai = getOpenAIClient();
   const prompt = `You are extracting structured data from a document.\n\nSchema:\n${formatSchemaInstructions(
     schema
@@ -118,7 +147,7 @@ async function runExtraction({ buffer, mimeType, filename, schema, feedbacks }) 
         role: 'user',
         content: [
           { type: 'input_text', text: prompt },
-          buildInputPart({ buffer, mimeType, filename })
+          buildInputPart({ buffer, mimeType, filename, fileId })
         ]
       }
     ]
@@ -140,5 +169,6 @@ async function runExtraction({ buffer, mimeType, filename, schema, feedbacks }) 
 module.exports = {
   generateDocumentSummary,
   generateTextEmbedding,
-  runExtraction
+  runExtraction,
+  uploadPdfForInference
 };
