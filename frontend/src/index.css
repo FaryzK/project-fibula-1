@@ -731,12 +731,14 @@ hr {
   margin-top: 0.8rem;
 }
 
+.service-list,
 .extractor-list {
   display: grid;
   margin-top: 0.6rem;
   border-top: 1px solid var(--line);
 }
 
+.service-row,
 .extractor-row {
   display: flex;
   align-items: center;
@@ -747,6 +749,7 @@ hr {
   background: transparent;
 }
 
+.service-row:hover,
 .extractor-row:hover {
   background: #f8fafc;
 }
@@ -1497,6 +1500,43 @@ hr {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+}
+
+.data-map-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--line);
+  margin-top: 0.6rem;
+}
+
+.data-map-table th,
+.data-map-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  vertical-align: top;
+}
+
+.data-map-table th {
+  background: #f8fafc;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.data-map-table .table-input {
+  width: 100%;
+  margin: 0;
+}
+
+.header-cell-editor {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.action-col {
+  width: 120px;
 }
 
 .tag-grid {

@@ -181,14 +181,15 @@ export function DataMapSetDetailPage() {
 
     try {
       if (isNew) {
-        const dataMapSet = await createDataMapSet({ name, headers, records });
+        await createDataMapSet({ name, headers, records });
         setStatusText('Data map set created');
-        navigate(`/app/services/data-mapper/sets/${dataMapSet.id}`);
+        navigate('/app/services/data-mapper');
         return;
       }
 
       await updateDataMapSet(setId, { name, headers, records });
       setStatusText('Data map set updated');
+      navigate('/app/services/data-mapper');
     } catch (error) {
       setErrorText(error?.response?.data?.error || 'Failed to save data map set');
     } finally {
@@ -199,15 +200,15 @@ export function DataMapSetDetailPage() {
   return (
     <div className="panel-stack">
       <header className="section-header">
-        <div>
-          <span className="section-eyebrow">Service Setup</span>
-          <h1>{isNew ? 'New Data Map Set' : 'Data Map Set'}</h1>
-          <p className="section-subtitle">Upload or curate lookup tables used for enrichment.</p>
+        <div className="section-title-row">
+          <Link className="icon-btn-neutral icon-btn-lg" to="/app/services/data-mapper" aria-label="Back to data mapper">
+            ←
+          </Link>
+          <div>
+            <h1>{name.trim() || (isNew ? 'New Data Map Set' : 'Data Map Set')}</h1>
+          </div>
         </div>
         <div className="section-actions">
-          <Link className="btn btn-ghost" to="/app/services/data-mapper">
-            Back to Data Mapper
-          </Link>
           <button type="button" className="btn-primary" onClick={handleSave} disabled={isSaving}>
             {isSaving ? 'Saving...' : 'Save Data Map Set'}
           </button>
@@ -263,45 +264,78 @@ export function DataMapSetDetailPage() {
           {headers.length === 0 ? <p>No headers yet.</p> : null}
 
           {headers.length > 0 ? (
-            <div className="table-editor">
-              <div className="table-row table-head">
-                {headers.map((header, index) => (
-                  <div className="table-cell" key={`header-${index}`}>
-                    <input
-                      type="text"
-                      value={header}
-                      onChange={(event) => updateHeader(index, event.target.value)}
-                    />
-                    <button type="button" className="btn btn-ghost" onClick={() => removeHeader(index)}>
-                      Remove
-                    </button>
-                  </div>
-                ))}
+            <>
+              <p className="muted-text">
+                Each row is one record. Example: with 2 headers, each record has 2 values in one row.
+              </p>
+              <div className="table-scroll">
+                <table className="data-map-table">
+                  <thead>
+                    <tr>
+                      {headers.map((header, index) => (
+                        <th key={`header-${index}`}>
+                          <div className="header-cell-editor">
+                            <input
+                              type="text"
+                              value={header}
+                              onChange={(event) => updateHeader(index, event.target.value)}
+                              className="table-input"
+                            />
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              onClick={() => removeHeader(index)}
+                              aria-label="Remove header"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </th>
+                      ))}
+                      <th className="action-col">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {records.length === 0 ? (
+                      <tr>
+                        <td colSpan={headers.length + 1}>
+                          <span className="muted-text">No records yet.</span>
+                        </td>
+                      </tr>
+                    ) : (
+                      records.map((row, rowIndex) => (
+                        <tr key={`row-${rowIndex}`}>
+                          {headers.map((_, columnIndex) => (
+                            <td key={`cell-${rowIndex}-${columnIndex}`}>
+                              <input
+                                type="text"
+                                value={row[columnIndex] || ''}
+                                onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)}
+                                className="table-input"
+                              />
+                            </td>
+                          ))}
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => removeRow(rowIndex)}
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
-              {records.map((row, rowIndex) => (
-                <div className="table-row" key={`row-${rowIndex}`}>
-                  {headers.map((_, columnIndex) => (
-                    <div className="table-cell" key={`cell-${rowIndex}-${columnIndex}`}>
-                      <input
-                        type="text"
-                        value={row[columnIndex] || ''}
-                        onChange={(event) => updateCell(rowIndex, columnIndex, event.target.value)}
-                      />
-                    </div>
-                  ))}
-                  <div className="table-cell">
-                    <button type="button" className="btn btn-ghost" onClick={() => removeRow(rowIndex)}>
-                      Remove Row
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            </>
           ) : null}
 
           <div className="panel-actions">
             <button type="button" className="btn btn-outline" onClick={addRow} disabled={headers.length === 0}>
-              Add Row
+              Add Record
             </button>
           </div>
         </section>
