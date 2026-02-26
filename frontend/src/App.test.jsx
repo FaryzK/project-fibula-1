@@ -64,4 +64,20 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: /workflow tab/i })).toBeTruthy();
   });
+
+  it('shows loading state while auth session is hydrating', async () => {
+    useAuthStore.setState({
+      user: null,
+      session: null,
+      isLoading: true
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/login']}>
+        <AppRoutes />
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/completing sign-in/i)).toBeTruthy();
+  });
 });
