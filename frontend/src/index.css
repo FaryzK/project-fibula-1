@@ -486,6 +486,10 @@ hr {
   margin-top: 0.5rem;
 }
 
+.panel-actions.align-right {
+  justify-content: flex-end;
+}
+
 .form-grid {
   display: grid;
   gap: 0.4rem;
@@ -524,15 +528,19 @@ hr {
 }
 
 .icon-btn {
-  border: 1px solid var(--line);
+  border: none;
   background: transparent;
-  color: var(--ink-soft);
+  color: var(--danger);
   width: 28px;
   height: 28px;
-  border-radius: var(--radius-sm);
+  border-radius: 50%;
   font-weight: 700;
   display: grid;
   place-items: center;
+}
+
+.icon-btn:hover {
+  background: rgba(180, 35, 59, 0.08);
 }
 
 .toggle {
