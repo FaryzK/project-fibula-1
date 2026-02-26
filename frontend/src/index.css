@@ -567,6 +567,11 @@ hr {
   background: rgba(180, 35, 59, 0.08);
 }
 
+.icon-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .icon-btn-neutral {
   border: none;
   background: transparent;
@@ -697,6 +702,10 @@ hr {
 .data-row {
   background: transparent;
   border-bottom: 1px solid var(--line);
+}
+
+.data-row-pending {
+  background: #f8fafc;
 }
 
 .data-cell {
