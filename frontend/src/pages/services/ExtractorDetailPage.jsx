@@ -1,4 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
+import pdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
   addExtractorFeedbackWithFile,
@@ -22,6 +24,8 @@ const STEPS = [
   { key: 'schema', label: 'Schema', description: 'Define header fields and table structures.' },
   { key: 'hold', label: 'Hold Rules', description: 'Set mandatory fields and hold behavior.' }
 ];
+
+GlobalWorkerOptions.workerSrc = pdfWorkerSrc;
 
 export function ExtractorDetailPage() {
   const { extractorId } = useParams();
@@ -55,6 +59,14 @@ export function ExtractorDetailPage() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [selectedPreviewTarget, setSelectedPreviewTarget] = useState(null);
   const [usedFeedbackIds, setUsedFeedbackIds] = useState([]);
+  const [documentUrl, setDocumentUrl] = useState('');
+  const [documentType, setDocumentType] = useState('');
+  const [documentPages, setDocumentPages] = useState(1);
+  const [documentPage, setDocumentPage] = useState(1);
+  const [isDocumentLoading, setIsDocumentLoading] = useState(false);
+  const [documentError, setDocumentError] = useState('');
+  const pdfRef = useRef(null);
+  const pdfDocRef = useRef(null);
 
   useEffect(() => {
     if (isNew) {
@@ -582,6 +594,97 @@ export function ExtractorDetailPage() {
     setUsedFeedbackIds([]);
   }, [uploadedDocument]);
 
+  useEffect(() => {
+    if (!uploadedDocument) {
+      if (documentUrl) {
+        URL.revokeObjectURL(documentUrl);
+      }
+      setDocumentUrl('');
+      setDocumentType('');
+      setDocumentPages(1);
+      setDocumentPage(1);
+      setDocumentError('');
+      pdfDocRef.current = null;
+      return;
+    }
+
+    const nextType = uploadedDocument.type || '';
+    setDocumentType(nextType);
+    setDocumentPages(1);
+    setDocumentPage(1);
+    setDocumentError('');
+
+    if (nextType === 'application/pdf') {
+      if (documentUrl) {
+        URL.revokeObjectURL(documentUrl);
+      }
+      setDocumentUrl('');
+      return;
+    }
+
+    const nextUrl = URL.createObjectURL(uploadedDocument);
+    setDocumentUrl(nextUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextUrl);
+    };
+  }, [uploadedDocument]);
+
+  useEffect(() => {
+    if (!uploadedDocument || documentType !== 'application/pdf') {
+      pdfDocRef.current = null;
+      return;
+    }
+
+    let isCancelled = false;
+    setIsDocumentLoading(true);
+
+    async function loadPdf() {
+      try {
+        const buffer = await uploadedDocument.arrayBuffer();
+        const pdf = await getDocument({ data: buffer }).promise;
+        if (isCancelled) {
+          return;
+        }
+        pdfDocRef.current = pdf;
+        setDocumentPages(pdf.numPages || 1);
+        setDocumentPage(1);
+      } catch (_error) {
+        pdfDocRef.current = null;
+        setDocumentError('Unable to preview PDF');
+      } finally {
+        if (!isCancelled) {
+          setIsDocumentLoading(false);
+        }
+      }
+    }
+
+    loadPdf();
+    return () => {
+      isCancelled = true;
+    };
+  }, [uploadedDocument, documentType, documentUrl]);
+
+  useEffect(() => {
+    async function renderPdfPage() {
+      if (!pdfDocRef.current || !pdfRef.current) {
+        return;
+      }
+      const pageNumber = Math.min(Math.max(documentPage, 1), documentPages || 1);
+      const page = await pdfDocRef.current.getPage(pageNumber);
+      const viewport = page.getViewport({ scale: 1.25 });
+      const canvas = pdfRef.current;
+      const context = canvas.getContext('2d');
+      canvas.height = viewport.height;
+      canvas.width = viewport.width;
+      await page.render({ canvasContext: context, viewport }).promise;
+    }
+
+    if (documentType === 'application/pdf') {
+      renderPdfPage();
+    }
+  }, [documentPage, documentPages, documentType]);
+
   return (
     <div className="panel-stack">
       <header className="section-header">
@@ -963,31 +1066,82 @@ export function ExtractorDetailPage() {
                     <p>Upload a document, run extraction, and annotate incorrect fields.</p>
                   </div>
                 </div>
-                <div className="form-grid">
-                  <label htmlFor="feedback-upload">Upload document</label>
-                  <input
-                    id="feedback-upload"
-                    type="file"
-                    onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
-                  />
+                <div className="feedback-toolbar">
+                  <div className="form-grid">
+                    <label htmlFor="feedback-upload">Upload document</label>
+                    <input
+                      id="feedback-upload"
+                      type="file"
+                      onChange={(event) => setUploadedDocument(event.target.files?.[0] || null)}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleRunExtraction}
+                    disabled={isExtracting || !uploadedDocument}
+                  >
+                    {isExtracting ? 'Extracting...' : extractionPreview ? 'Re-extract' : 'Run Extraction'}
+                  </button>
                 </div>
 
                 {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
                 {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
-
-                <div className="panel-actions">
-                  <button type="button" className="btn btn-outline" onClick={handleRunExtraction} disabled={isExtracting}>
-                    {isExtracting ? 'Extracting...' : extractionPreview ? 'Re-extract' : 'Run Extraction'}
-                  </button>
-                </div>
               </section>
 
-              {extractionPreview ? (
-                <section className="panel">
+              <div className="feedback-grid">
+                <section className="panel feedback-column">
                   <div className="panel-header">
                     <div>
-                      <h2>Extraction Preview</h2>
-                      <p>Select a field or column to leave feedback.</p>
+                      <h2>Document Preview</h2>
+                      <p>Compare the extracted data with the source.</p>
+                    </div>
+                  </div>
+                  <div className={`document-preview ${documentUrl ? '' : 'empty'}`}>
+                    {uploadedDocument ? (
+                      documentType === 'application/pdf' ? (
+                        <>
+                          {isDocumentLoading ? <p className="muted-text">Loading document…</p> : null}
+                          {documentError ? <p className="status-error">{documentError}</p> : null}
+                          <canvas ref={pdfRef} className="pdf-canvas" />
+                          <div className="page-controls">
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() => setDocumentPage((current) => Math.max(1, current - 1))}
+                              disabled={documentPage <= 1}
+                            >
+                              Prev
+                            </button>
+                            <span className="page-indicator">
+                              Page {documentPage} of {documentPages}
+                            </span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              onClick={() =>
+                                setDocumentPage((current) => Math.min(documentPages, current + 1))
+                              }
+                              disabled={documentPage >= documentPages}
+                            >
+                              Next
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <img src={documentUrl} alt="Uploaded document preview" />
+                      )
+                    ) : (
+                      <div className="document-placeholder" />
+                    )}
+                  </div>
+                </section>
+
+                <section className="panel feedback-column">
+                  <div className="panel-header">
+                    <div>
+                      <h2>Extraction & Feedback</h2>
+                      <p>Select a field or table cell, then leave feedback.</p>
                     </div>
                   </div>
                   {usedFeedbackIds.length ? (
@@ -1000,122 +1154,120 @@ export function ExtractorDetailPage() {
                       ))}
                     </div>
                   ) : null}
-                  <div className="panel-stack">
-                    <div>
-                      <h3>Header Fields</h3>
-                      {(extractionPreview.headerFields || []).length === 0 ? (
-                        <p className="muted-text">No header fields defined.</p>
-                      ) : (
-                        <div className="data-table">
-                          <div className="data-header">
-                            <span>Field</span>
-                            <span>Extracted value</span>
-                            <span></span>
-                          </div>
-                          {extractionPreview.headerFields.map((field) => (
-                            <div
-                              className={`data-row ${selectedPreviewTarget?.path === field.fieldName ? 'row-active' : ''}`}
-                              key={field.fieldName}
-                              onClick={() => handleSelectHeaderTarget(field.fieldName)}
-                            >
-                              <div className="data-cell">
-                                <span className="card-title">{field.fieldName}</span>
-                              </div>
-                              <div className="data-cell">
-                                <span className="data-meta">{field.value}</span>
-                              </div>
-                              <div className="data-cell">
-                                <span className="tag">Select</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
 
-                    <div>
-                      <h3>Table Types</h3>
-                      {(extractionPreview.tableTypes || []).length === 0 ? (
-                        <p className="muted-text">No table types defined.</p>
-                      ) : (
-                        extractionPreview.tableTypes.map((table) => (
-                          <div key={table.tableName} className="panel">
-                            <div className="panel-header">
-                              <div>
-                                <h3>{table.tableName}</h3>
-                                <p className="muted-text">Select a column to leave feedback.</p>
-                              </div>
-                            </div>
-                            <div className="data-table">
-                              <div className="data-header">
-                                <span>Column</span>
-                                <span>Extracted value</span>
-                                <span></span>
-                              </div>
-                              {table.columns.map((column) => (
-                                <div
-                                  className={`data-row ${selectedPreviewTarget?.path === `${table.tableName}.${column.columnName}` ? 'row-active' : ''}`}
-                                  key={`${table.tableName}-${column.columnName}`}
-                                  onClick={() => handleSelectTableTarget(table.tableName, column.columnName)}
-                                >
-                                  <div className="data-cell">
-                                    <span className="card-title">{column.columnName}</span>
-                                  </div>
-                                  <div className="data-cell">
-                                    <span className="data-meta">{column.value}</span>
-                                  </div>
-                                  <div className="data-cell">
-                                    <span className="tag">Select</span>
-                                  </div>
-                                </div>
+                  {extractionPreview ? (
+                    <div className="panel-stack">
+                      <div>
+                        <h3>Header Fields</h3>
+                        {(extractionPreview.headerFields || []).length === 0 ? (
+                          <p className="muted-text">No header fields defined.</p>
+                        ) : (
+                          <table className="preview-table">
+                            <thead>
+                              <tr>
+                                <th>Field</th>
+                                <th>Extracted value</th>
+                                <th></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {extractionPreview.headerFields.map((field) => (
+                                <tr key={field.fieldName}>
+                                  <td>{field.fieldName}</td>
+                                  <td>{field.value}</td>
+                                  <td>
+                                    <button
+                                      type="button"
+                                      className={`select-btn ${selectedPreviewTarget?.path === field.fieldName ? 'active' : ''}`}
+                                      onClick={() => handleSelectHeaderTarget(field.fieldName)}
+                                    >
+                                      Select
+                                    </button>
+                                  </td>
+                                </tr>
                               ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+
+                      <div>
+                        <h3>Table Types</h3>
+                        {(extractionPreview.tableTypes || []).length === 0 ? (
+                          <p className="muted-text">No table types defined.</p>
+                        ) : (
+                          extractionPreview.tableTypes.map((table) => (
+                            <div key={table.tableName} className="table-preview">
+                              <div className="panel-header">
+                                <div>
+                                  <h3>{table.tableName}</h3>
+                                  <p className="muted-text">Single-row preview of extracted values.</p>
+                                </div>
+                              </div>
+                              <table className="preview-table">
+                                <thead>
+                                  <tr>
+                                    {table.columns.map((column) => (
+                                      <th key={`${table.tableName}-${column.columnName}`}>
+                                        {column.columnName}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  <tr>
+                                    {table.columns.map((column) => (
+                                      <td key={`${table.tableName}-${column.columnName}`}>
+                                        <button
+                                          type="button"
+                                          className={`cell-select ${selectedPreviewTarget?.path === `${table.tableName}.${column.columnName}` ? 'active' : ''}`}
+                                          onClick={() =>
+                                            handleSelectTableTarget(table.tableName, column.columnName)
+                                          }
+                                        >
+                                          {column.value}
+                                        </button>
+                                      </td>
+                                    ))}
+                                  </tr>
+                                </tbody>
+                              </table>
                             </div>
-                          </div>
-                        ))
-                      )}
+                          ))
+                        )}
+                      </div>
+
+                      <div className="feedback-form">
+                        <label htmlFor="feedback-target">Selected target</label>
+                        <input
+                          id="feedback-target"
+                          type="text"
+                          value={selectedPreviewTarget?.path || ''}
+                          placeholder="Select a field or column"
+                          disabled
+                        />
+
+                        <label htmlFor="feedback-text">Feedback</label>
+                        <textarea
+                          id="feedback-text"
+                          rows={4}
+                          value={feedbackText}
+                          onChange={(event) => setFeedbackText(event.target.value)}
+                          placeholder="Describe the correction that should be applied."
+                        />
+
+                        <div className="panel-actions">
+                          <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
+                            Save Feedback
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <p className="muted-text">Run extraction to see extracted values.</p>
+                  )}
                 </section>
-              ) : null}
-
-              {extractionPreview ? (
-                <section className="panel">
-                  <div className="panel-header">
-                    <div>
-                      <h2>Feedback</h2>
-                      <p>Describe how the extraction should be corrected.</p>
-                    </div>
-                  </div>
-                  <div className="form-grid">
-                    <label htmlFor="feedback-target">Selected target</label>
-                    <input
-                      id="feedback-target"
-                      type="text"
-                      value={selectedPreviewTarget?.path || ''}
-                      placeholder="Select a field or column"
-                      disabled
-                    />
-
-                    <label htmlFor="feedback-text">Feedback</label>
-                    <textarea
-                      id="feedback-text"
-                      rows={4}
-                      value={feedbackText}
-                      onChange={(event) => setFeedbackText(event.target.value)}
-                      placeholder="Describe the correction that should be applied."
-                    />
-                  </div>
-
-                  {feedbackError ? <p className="status-error">{feedbackError}</p> : null}
-                  {feedbackStatus ? <p className="status-ok">{feedbackStatus}</p> : null}
-
-                  <div className="panel-actions">
-                    <button type="button" className="btn btn-outline" onClick={handleAddFeedback}>
-                      Save Feedback
-                    </button>
-                  </div>
-                </section>
-              ) : null}
+              </div>
 
               <section className="panel">
                 <div className="panel-header">

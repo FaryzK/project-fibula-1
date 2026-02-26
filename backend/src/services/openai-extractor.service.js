@@ -131,6 +131,30 @@ function formatFeedbackContext(feedbacks) {
     .join('\n');
 }
 
+function stripCodeFences(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed.startsWith('```')) {
+    return trimmed;
+  }
+
+  const match = trimmed.match(/^```[a-zA-Z]*\n([\s\S]*?)```$/);
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+
+  return trimmed.replace(/^```[a-zA-Z]*\n?/, '').replace(/```$/, '').trim();
+}
+
+function extractJsonSubstring(value) {
+  const text = String(value || '');
+  const first = text.indexOf('{');
+  const last = text.lastIndexOf('}');
+  if (first !== -1 && last !== -1 && last > first) {
+    return text.slice(first, last + 1);
+  }
+  return text;
+}
+
 async function runExtraction({ buffer, mimeType, filename, fileId, schema, feedbacks }) {
   const openai = getOpenAIClient();
   const prompt = `You are extracting structured data from a document.\n\nSchema:\n${formatSchemaInstructions(
@@ -159,7 +183,8 @@ async function runExtraction({ buffer, mimeType, filename, fileId, schema, feedb
   }
 
   try {
-    return JSON.parse(raw);
+    const sanitized = extractJsonSubstring(stripCodeFences(raw));
+    return JSON.parse(sanitized);
   } catch (error) {
     const parsed = { error: 'Invalid JSON from model', raw };
     throw Object.assign(new Error('Invalid JSON from model'), { parsed });
